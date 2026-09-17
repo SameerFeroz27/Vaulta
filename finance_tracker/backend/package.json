@@ -1,0 +1,39 @@
+{
+  "name": "finance-tracker-backend",
+  "version": "1.0.0",
+  "description": "Finance Tracker backend API with PostgreSQL, Drizzle ORM, JWT auth, and Groq AI receipt processing",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "worker": "node src/worker.js",
+    "worker:dev": "node --watch src/worker.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "node src/db/seed.js",
+    "setup": "npm run db:migrate && npm run db:seed",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.39.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "groq-sdk": "^0.15.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.13.3",
+    "tesseract.js": "^5.1.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.4",
+    "supertest": "^7.0.0",
+    "vitest": "^3.0.7"
+  }
+}

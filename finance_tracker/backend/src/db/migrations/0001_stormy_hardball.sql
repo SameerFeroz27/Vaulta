@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "idx_budgets_unique" ON "budgets" USING btree ("user_id","category_id","month");
