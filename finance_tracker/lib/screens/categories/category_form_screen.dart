@@ -146,6 +146,7 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
           'This cannot be undone.',
     );
     if (!confirmed) return;
+    if (!mounted) return;
 
     setState(() => _isSaving = true);
 

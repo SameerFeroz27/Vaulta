@@ -118,6 +118,7 @@ class ExpensePieChart extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 4),
                               Text(
                                 Formatters.currency(item.total,
                                     code: currency),
@@ -125,6 +126,8 @@ class ExpensePieChart extends StatelessWidget {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

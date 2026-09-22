@@ -69,10 +69,13 @@ class TransactionCard extends StatelessWidget {
                     Text(
                       '${Formatters.shortDate(t.transactionDate)} • ${t.sourceName}',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '$amountPrefix$numberFormat',
                 style: TextStyle(
@@ -80,6 +83,8 @@ class TransactionCard extends StatelessWidget {
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

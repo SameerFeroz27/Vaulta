@@ -58,27 +58,29 @@ router.get('/summary', async (req, res, next) => {
     // Aggregate income/expense/count
     const [summary] = (await db.execute(sql`
       SELECT
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0)::numeric AS total_income,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS total_expense,
+        COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1) ELSE 0 END), 0)::numeric AS total_income,
+        COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1) ELSE 0 END), 0)::numeric AS total_expense,
         COUNT(*)::int AS transaction_count
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND transaction_date >= ${start}
-        AND transaction_date < ${end}
-        AND status != 'archived'
+      FROM transactions t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.user_id = ${userId}
+        AND t.transaction_date >= ${start}
+        AND t.transaction_date < ${end}
+        AND t.status != 'archived'
     `)).rows;
 
     // Top 5 merchants by expense
     const topMerchants = (await db.execute(sql`
-      SELECT merchant, SUM(amount)::numeric AS total_spent
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND type = 'expense'
-        AND transaction_date >= ${start}
-        AND transaction_date < ${end}
-        AND status != 'archived'
-        AND merchant IS NOT NULL
-      GROUP BY merchant
+      SELECT t.merchant, SUM(t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1))::numeric AS total_spent
+      FROM transactions t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.user_id = ${userId}
+        AND t.type = 'expense'
+        AND t.transaction_date >= ${start}
+        AND t.transaction_date < ${end}
+        AND t.status != 'archived'
+        AND t.merchant IS NOT NULL
+      GROUP BY t.merchant
       ORDER BY total_spent DESC
       LIMIT 5
     `)).rows.map((r) => ({
@@ -123,9 +125,10 @@ router.get('/expense-by-category', async (req, res, next) => {
         c.name AS category_name,
         c.icon,
         c.color,
-        SUM(t.amount)::numeric AS total
+        SUM(t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1))::numeric AS total
       FROM transactions t
       INNER JOIN categories c ON t.category_id = c.id
+      JOIN users u ON u.id = t.user_id
       WHERE t.user_id = ${userId}
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
@@ -177,7 +180,7 @@ router.get('/expense-by-source', async (req, res, next) => {
       SELECT
         s.id AS source_id,
         s.name AS source_name,
-        COALESCE(SUM(t.amount), 0)::numeric AS total
+        COALESCE(SUM(t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1)), 0)::numeric AS total
       FROM sources s
       LEFT JOIN transactions t ON t.source_id = s.id
         AND t.user_id = ${userId}
@@ -185,6 +188,7 @@ router.get('/expense-by-source', async (req, res, next) => {
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
         AND t.status != 'archived'
+      LEFT JOIN users u ON u.id = ${userId}
       GROUP BY s.id, s.name
       ORDER BY total DESC
     `)).rows.map((r) => ({
@@ -225,14 +229,15 @@ router.get('/expense-trend', async (req, res, next) => {
 
     const rows = (await db.execute(sql`
       SELECT
-        TO_CHAR(transaction_date, 'YYYY-MM') AS month,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS total_expense,
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0)::numeric AS total_income
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND transaction_date >= ${startDate}
-        AND status != 'archived'
-      GROUP BY TO_CHAR(transaction_date, 'YYYY-MM')
+        TO_CHAR(t.transaction_date, 'YYYY-MM') AS month,
+        COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1) ELSE 0 END), 0)::numeric AS total_expense,
+        COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1) ELSE 0 END), 0)::numeric AS total_income
+      FROM transactions t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.user_id = ${userId}
+        AND t.transaction_date >= ${startDate}
+        AND t.status != 'archived'
+      GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
       ORDER BY month ASC
     `)).rows;
 
@@ -288,26 +293,28 @@ router.get('/budget-status', async (req, res, next) => {
     // 2. Fetch actual spending per category for the month
     const spendingRows = (await db.execute(sql`
       SELECT
-        category_id,
-        SUM(amount)::numeric AS spent
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND type = 'expense'
-        AND transaction_date >= ${start}
-        AND transaction_date < ${end}
-        AND status != 'archived'
-      GROUP BY category_id
+        t.category_id,
+        SUM(t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1))::numeric AS spent
+      FROM transactions t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.user_id = ${userId}
+        AND t.type = 'expense'
+        AND t.transaction_date >= ${start}
+        AND t.transaction_date < ${end}
+        AND t.status != 'archived'
+      GROUP BY t.category_id
     `)).rows;
 
     // 3. Overall spending for the month
     const [overallRow] = (await db.execute(sql`
-      SELECT COALESCE(SUM(amount), 0)::numeric AS spent
-      FROM transactions
-      WHERE user_id = ${userId}
-        AND type = 'expense'
-        AND transaction_date >= ${start}
-        AND transaction_date < ${end}
-        AND status != 'archived'
+      SELECT COALESCE(SUM(t.amount * COALESCE((u.exchange_rates->>t.currency)::numeric, 1)), 0)::numeric AS spent
+      FROM transactions t
+      JOIN users u ON u.id = t.user_id
+      WHERE t.user_id = ${userId}
+        AND t.type = 'expense'
+        AND t.transaction_date >= ${start}
+        AND t.transaction_date < ${end}
+        AND t.status != 'archived'
     `)).rows;
 
     const overallSpent = parseFloat(overallRow.spent);

@@ -24,6 +24,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   final _descriptionController = TextEditingController();
 
   late String _type;
+  late String _currency;
   int? _sourceId;
   int? _categoryId;
   late DateTime _date;
@@ -36,6 +37,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     super.initState();
     final t = widget.transaction;
     _type = t?.type ?? 'expense';
+    _currency = t?.currency ??
+        context.read<AuthProvider>().user?.currency ??
+        'PKR';
     _sourceId = t?.sourceId;
     _categoryId = t?.categoryId;
     _date = t != null ? DateTime.parse(t.transactionDate) : DateTime.now();
@@ -65,6 +69,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
+    if (!mounted) return;
     if (picked != null) setState(() => _date = picked);
   }
 
@@ -79,14 +84,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
     setState(() => _saving = true);
 
-    final userCurrency =
-        context.read<AuthProvider>().user?.currency ?? 'PKR';
-
     final body = <String, dynamic>{
       'sourceId': _sourceId,
       'amount': double.parse(_amountController.text),
       'type': _type,
-      'currency': userCurrency,
+      'currency': _currency,
       'transactionDate':
           '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
     };
@@ -125,9 +127,25 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Widget build(BuildContext context) {
     final categoryProvider = context.watch<CategoryProvider>();
     final categories = categoryProvider.forType(_type);
-    final userCurrency =
-        context.watch<AuthProvider>().user?.currency ?? 'PKR';
-    final currencySymbol = Constants.currencySymbol(userCurrency);
+    final auth = context.watch<AuthProvider>();
+    final userCurrency = auth.user?.currency ?? 'PKR';
+    final symbol = Constants.currencySymbol(_currency);
+
+    // Compute converted-amount hint when the transaction currency differs
+    // from the base currency and an exchange rate is available.
+    String? conversionHint;
+    if (_currency != userCurrency) {
+      final rates = auth.user?.exchangeRates;
+      final rate = rates?[_currency];
+      if (rate != null && rate > 0) {
+        final amount = double.tryParse(_amountController.text);
+        if (amount != null && amount > 0) {
+          final converted = amount * rate;
+          final baseSymbol = Constants.currencySymbol(userCurrency);
+          conversionHint = '≈ $baseSymbol${converted.toStringAsFixed(0)} $userCurrency';
+        }
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -157,7 +175,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
               controller: _amountController,
               decoration: InputDecoration(
                 labelText: 'Amount',
-                prefixText: '$currencySymbol ',
+                prefixText: '$symbol ',
+                helperText: conversionHint,
                 isDense: true,
               ),
               keyboardType: const TextInputType.numberWithOptions(
@@ -171,6 +190,27 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 }
                 return null;
               },
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+
+            // Currency — the currency this specific transaction was made in
+            // (distinct from the base currency in Settings, which is what
+            // dashboard totals convert to)
+            DropdownButtonFormField<String>(
+              initialValue: _currency,
+              decoration: const InputDecoration(
+                labelText: 'Transaction Currency',
+                helperText: 'The currency this amount is in',
+                isDense: true,
+              ),
+              items: Constants.supportedCurrencies
+                  .map((c) => DropdownMenuItem(
+                        value: c.code,
+                        child: Text('${c.symbol}  ${c.code} — ${c.name}'),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _currency = v ?? _currency),
             ),
             const SizedBox(height: 16),
 

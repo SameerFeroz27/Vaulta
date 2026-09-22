@@ -8,7 +8,7 @@ import '../config/constants.dart';
 class ThemeProvider extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
 
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
 
   ThemeMode get themeMode => _themeMode;
 
@@ -20,7 +20,7 @@ class ThemeProvider extends ChangeNotifier {
       _themeMode = switch (saved) {
         'light' => ThemeMode.light,
         'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
+        _ => ThemeMode.light,
       };
       notifyListeners();
     }

@@ -9,12 +9,12 @@ class Constants {
   static String get apiBaseUrl => _customApiBaseUrl ?? _defaultApiBaseUrl;
 
   /// Platform-default base URL.
-  /// Android emulator needs 10.0.2.2 (maps to host machine's localhost).
-  /// Web, desktop, and iOS simulator use localhost directly.
+  /// Android uses the ngrok public tunnel so the app works from any network
+  /// (not just office WiFi). Web/desktop use localhost for local dev.
   static String get _defaultApiBaseUrl {
     if (kIsWeb) return 'http://localhost:5000/api';
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://192.168.9.172:5000/api';
+      return 'https://tributary-evergreen-repeater.ngrok-free.dev/api';
     }
     return 'http://localhost:5000/api';
   }
@@ -49,6 +49,20 @@ class Constants {
     }
     return code;
   }
+
+  /// Default exchange rates relative to PKR (1 unit of X = N PKR).
+  /// Used to pre-fill the Settings form when the base currency is PKR
+  /// and the user hasn't set custom rates yet.
+  static const Map<String, double> defaultRatesToPKR = {
+    'USD': 280,
+    'EUR': 300,
+    'GBP': 350,
+    'AED': 76,
+    'INR': 3.3,
+    'SAR': 75,
+    'CAD': 200,
+    'AUD': 185,
+  };
 
   /// Payment sources seeded in the backend (no CRUD endpoint exists for these).
   static const List<Source> sources = [

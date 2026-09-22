@@ -12,6 +12,8 @@ import 'providers/theme_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'screens/auth/forgot_password_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/transactions/transaction_list_screen.dart';
@@ -53,7 +55,9 @@ void main() async {
       final status = authProvider.status;
       final isAuthRoute =
           state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/forgot-password' ||
+          state.matchedLocation == '/reset-password';
 
       if (status == AuthStatus.unknown) return null;
       if (status == AuthStatus.unauthenticated && !isAuthRoute) {
@@ -67,6 +71,14 @@ void main() async {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
       GoRoute(path: '/', builder: (context, state) => const MainScaffold()),
     ],

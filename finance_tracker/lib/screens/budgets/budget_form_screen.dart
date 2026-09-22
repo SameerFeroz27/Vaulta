@@ -98,6 +98,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
           'This budget for ${Formatters.month(_selectedMonth)} will be removed.',
     );
     if (!confirmed) return;
+    if (!mounted) return;
 
     setState(() => _isSaving = true);
 

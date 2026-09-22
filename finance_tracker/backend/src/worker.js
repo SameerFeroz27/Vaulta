@@ -134,7 +134,7 @@ async function processReceipt(receiptId) {
       try {
         rawAiResponse = await parseReceiptWithVision(fullPath, receipt.mimeType || 'image/jpeg');
         ocrProvider = 'groq_vision';
-        aiModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.6-27b';
+        aiModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
         console.log(`[Worker] Receipt ${receiptId}: Groq Vision succeeded`);
       } catch (visionErr) {
         console.warn(`[Worker] Receipt ${receiptId}: Groq Vision failed (${visionErr.message}), trying Tesseract fallback`);

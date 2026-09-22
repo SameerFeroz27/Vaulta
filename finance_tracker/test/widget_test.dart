@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:finance_tracker/main.dart';
 import 'package:finance_tracker/providers/auth_provider.dart';
+import 'package:finance_tracker/providers/theme_provider.dart';
 import 'package:finance_tracker/services/api_client.dart';
 
 void main() {
@@ -13,6 +14,7 @@ void main() {
   ) async {
     final apiClient = ApiClient();
     final authProvider = AuthProvider(apiClient: apiClient);
+    final themeProvider = ThemeProvider();
 
     final router = GoRouter(
       initialLocation: '/login',
@@ -30,6 +32,7 @@ void main() {
         providers: [
           Provider<ApiClient>.value(value: apiClient),
           ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ],
         child: FinanceTrackerApp(router: router),
       ),

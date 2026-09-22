@@ -221,6 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 Formatters.currency(m.totalSpent,
                                     code: userCurrency),
@@ -229,6 +230,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   fontWeight: FontWeight.w500,
                                   color: AppTheme.expenseColor,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

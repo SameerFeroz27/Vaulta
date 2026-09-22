@@ -17,10 +17,12 @@ function generateTokens(user) {
 
   const accessToken = jwt.sign(payload, ACCESS_SECRET, {
     expiresIn: ACCESS_EXPIRES_IN,
+    jwtid: crypto.randomUUID(),
   });
 
   const refreshToken = jwt.sign(payload, REFRESH_SECRET, {
     expiresIn: REFRESH_EXPIRES_IN,
+    jwtid: crypto.randomUUID(),
   });
 
   return {

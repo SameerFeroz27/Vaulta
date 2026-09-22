@@ -102,30 +102,45 @@ class ApiClient {
   }
 
   /// Attempt to refresh the access token using the stored refresh token.
-  /// Returns true on success, false (with cleanup) on failure.
+  /// Returns true on success, false on failure.
+  ///
+  /// On a *network* failure we return false WITHOUT clearing tokens — the
+  /// refresh token may still be valid, so the next request can retry.  We
+  /// only clear tokens when the server explicitly rejects the refresh token
+  /// (success: false), meaning the credentials are genuinely invalid.
   Future<bool> _tryRefresh() async {
     if (_refreshToken == null) return false;
 
+    http.Response response;
     try {
-      final response = await _httpClient.post(
+      response = await _httpClient.post(
         Uri.parse('${Constants.apiBaseUrl}/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'refreshToken': _refreshToken}),
       );
-
-      final body = json.decode(response.body) as Map<String, dynamic>;
-      if (body['success'] == true) {
-        final tokens = body['data']['tokens'] as Map<String, dynamic>;
-        await saveTokens(
-          tokens['accessToken'] as String,
-          tokens['refreshToken'] as String,
-        );
-        return true;
-      }
     } catch (_) {
-      // fall through to cleanup
+      // Network error — keep tokens; they may still be valid.
+      return false;
     }
 
+    Map<String, dynamic> body;
+    try {
+      body = json.decode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      // Non-JSON response (e.g. ngrok error page) — keep tokens.
+      return false;
+    }
+
+    if (body['success'] == true) {
+      final tokens = body['data']['tokens'] as Map<String, dynamic>;
+      await saveTokens(
+        tokens['accessToken'] as String,
+        tokens['refreshToken'] as String,
+      );
+      return true;
+    }
+
+    // Server explicitly rejected the refresh token — credentials are invalid.
     await clearTokens();
     onAuthFailed?.call();
     return false;

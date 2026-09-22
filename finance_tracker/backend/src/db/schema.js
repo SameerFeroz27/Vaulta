@@ -23,6 +23,7 @@ const users = pgTable('users', {
   name: text('name').notNull(),
   currency: char('currency', { length: 3 }).notNull().default('PKR'),
   timezone: text('timezone').notNull().default('Asia/Karachi'),
+  exchangeRates: jsonb('exchange_rates'), // { "USD": 280, "EUR": 300, ... } — 1 unit of X = N units of base currency
   status: text('status').notNull().default('active'), // active, inactive, deleted
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -41,6 +42,20 @@ const refreshTokens = pgTable('refresh_tokens', {
 }, (table) => [
   index('idx_refresh_tokens_user_id').on(table.userId),
   index('idx_refresh_tokens_expires_at').on(table.expiresAt),
+]);
+
+// 2b. Password Reset Tokens Table (Hashed storage, 1-hour expiry, single-use)
+const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  ipAddress: text('ip_address'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('idx_password_reset_tokens_user_id').on(table.userId),
+  index('idx_password_reset_tokens_expires_at').on(table.expiresAt),
 ]);
 
 // 3. Payment Sources Table (Fixed global seeds: Card, Cash, Online)
@@ -145,10 +160,15 @@ const budgets = pgTable('budgets', {
 // Relationships
 const usersRelations = relations(users, ({ many }) => ({
   refreshTokens: many(refreshTokens),
+  passwordResetTokens: many(passwordResetTokens),
   transactions: many(transactions),
   receipts: many(receipts),
   categories: many(categories),
   budgets: many(budgets),
+}));
+
+const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+  user: one(users, { fields: [passwordResetTokens.userId], references: [users.id] }),
 }));
 
 const sourcesRelations = relations(sources, ({ many }) => ({
@@ -181,12 +201,14 @@ const budgetsRelations = relations(budgets, ({ one }) => ({
 module.exports = {
   users,
   refreshTokens,
+  passwordResetTokens,
   sources,
   categories,
   receipts,
   transactions,
   budgets,
   usersRelations,
+  passwordResetTokensRelations,
   sourcesRelations,
   categoriesRelations,
   receiptsRelations,

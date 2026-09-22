@@ -15,6 +15,20 @@
       "when": 1788938248790,
       "tag": "0001_stormy_hardball",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789639496975,
+      "tag": "0002_old_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789994505389,
+      "tag": "0003_hard_mimic",
+      "breakpoints": true
     }
   ]
 }

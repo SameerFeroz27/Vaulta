@@ -3,6 +3,20 @@
 #
 # This file should be version controlled and should not be manually edited.
 
+# --- App metadata (not read by Flutter tooling) ---
+app:
+  name: "Vaulta"
+  description: "AI-powered personal finance tracker for cash-heavy, SMS-banking markets"
+  version: "1.0.0+1"
+  package: "finance_tracker"
+  repository: "https://github.com/SameerFeroz27/Vaulta.git"
+  default_currency: "PKR"
+  default_timezone: "Asia/Karachi"
+  platforms:
+    - android
+    - web
+# --- End app metadata ---
+
 version:
   revision: "e8113bf45620cbeb8aff64947ee4c93e16adb4cf"
   channel: "stable"

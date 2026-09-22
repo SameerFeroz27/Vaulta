@@ -30,6 +30,7 @@ async function authenticate(req, res, next) {
         name: users.name,
         currency: users.currency,
         timezone: users.timezone,
+        exchangeRates: users.exchangeRates,
         status: users.status,
       })
       .from(users)

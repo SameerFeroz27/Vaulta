@@ -24,18 +24,19 @@ class SummaryCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 2),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 4),
+                Icon(icon, size: 14, color: color),
+                const SizedBox(width: 3),
                 Flexible(
                   child: Text(
                     label,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
@@ -49,7 +50,7 @@ class SummaryCard extends StatelessWidget {
               child: Text(
                 Formatters.currency(amount, code: currency),
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),

@@ -121,15 +121,22 @@ describe('Auth API', () => {
     });
 
     it('should reject reused (revoked) token and revoke all user tokens', async () => {
+      // Login to get fresh tokens (previous test consumed the shared token)
+      const loginRes = await request(app).post('/api/auth/login').send({
+        email: testEmail,
+        password: testPassword,
+      });
+      const freshRefreshToken = loginRes.body.data.tokens.refreshToken;
+
       // First refresh — rotates the token (old one is now revoked)
       const firstRefresh = await request(app).post('/api/auth/refresh').send({
-        refreshToken: tokens.refreshToken,
+        refreshToken: freshRefreshToken,
       });
       expect(firstRefresh.status).toBe(200);
 
       // Try to reuse the original (now revoked) token
       const reuseAttempt = await request(app).post('/api/auth/refresh').send({
-        refreshToken: tokens.refreshToken,
+        refreshToken: freshRefreshToken,
       });
 
       expect(reuseAttempt.status).toBe(401);

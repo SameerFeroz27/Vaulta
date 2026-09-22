@@ -69,16 +69,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingTile(
                   icon: Icons.attach_money_outlined,
-                  label: 'Currency',
+                  label: 'Base Currency',
+                  subtitle: 'Dashboard totals convert to this currency',
                   value:
                       '${Constants.currencySymbol(user?.currency ?? 'PKR')} ${user?.currency ?? 'PKR'}',
                   onTap: () => _showCurrencyPicker(context, auth),
                 ),
                 const Divider(height: 1, indent: 56),
                 _SettingTile(
+                  icon: Icons.currency_exchange_outlined,
+                  label: 'Exchange Rates',
+                  subtitle: 'Auto-fetched from live API',
+                  value: (user?.exchangeRates?.isNotEmpty ?? false)
+                      ? '${user!.exchangeRates!.length} live rates'
+                      : 'Tap to fetch',
+                  onTap: () => _showExchangeRatesDialog(context, auth),
+                ),
+                const Divider(height: 1, indent: 56),
+                _SettingTile(
                   icon: Icons.schedule_outlined,
                   label: 'Timezone',
                   value: user?.timezone ?? 'Asia/Karachi',
+                ),
+                const Divider(height: 1, indent: 56),
+                _SettingTile(
+                  icon: Icons.lock_outline,
+                  label: 'Change Password',
+                  value: 'Change',
+                  onTap: () => _showChangePasswordDialog(context, auth),
                 ),
               ],
             ),
@@ -146,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ButtonSegment(
                   value: ThemeMode.system,
-                  label: Text('System'),
+                  label: Text('Auto'),
                   icon: Icon(Icons.settings_outlined),
                 ),
               ],
@@ -217,7 +235,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             hintText: 'http://192.168.1.50:5000/api',
             helperText: "Use your computer's LAN IP for real devices",
           ),
-          autofocus: true,
         ),
         actions: [
           if (Constants.hasCustomApiBaseUrl)
@@ -228,10 +245,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final messenger = ScaffoldMessenger.of(context);
                 try {
                   await apiClient.resetApiBaseUrl();
+                  if (!ctx.mounted) return;
+                  navigator.pop();
                   if (mounted) setState(() {});
-                  navigator.pop();
                 } catch (e) {
-                  navigator.pop();
+                  if (ctx.mounted) navigator.pop();
                   if (mounted) {
                     messenger.showSnackBar(
                       SnackBar(content: Text('Failed to reset URL: $e')),
@@ -259,10 +277,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final messenger = ScaffoldMessenger.of(context);
               try {
                 await apiClient.saveApiBaseUrl(url);
+                if (!ctx.mounted) return;
+                navigator.pop();
                 if (mounted) setState(() {});
-                navigator.pop();
               } catch (e) {
-                navigator.pop();
+                if (ctx.mounted) navigator.pop();
                 if (mounted) {
                   messenger.showSnackBar(
                     SnackBar(content: Text('Failed to save URL: $e')),
@@ -283,7 +302,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Select Currency'),
+        title: const Text('Select Base Currency'),
         children: Constants.supportedCurrencies.map((c) {
           return ListTile(
             leading: c.code == current
@@ -294,12 +313,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () {
               Navigator.pop(ctx);
               if (c.code != current) {
-                auth.updateProfile(currency: c.code);
+                // Change currency, clear old rates, then auto-fetch new ones
+                auth.updateProfile(currency: c.code, clearExchangeRates: true)
+                    .then((_) => auth.refreshExchangeRates());
               }
             },
           );
         }).toList(),
       ),
+    );
+  }
+
+  void _showExchangeRatesDialog(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (_) => _ExchangeRatesDialog(auth: auth),
     );
   }
 
@@ -326,6 +354,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showChangePasswordDialog(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (_) => _ChangePasswordDialog(auth: auth),
     );
   }
 }
@@ -355,24 +390,39 @@ class _SettingTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String? subtitle;
   final VoidCallback? onTap;
 
   const _SettingTile({
     required this.icon,
     required this.label,
     required this.value,
+    this.subtitle,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final subtitleStyle = TextStyle(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontSize: 12,
+    );
+    final valueStyle = TextStyle(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontSize: 14,
+    );
+
     final tile = ListTile(
       leading: Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
       title: Text(label),
-      trailing: Text(
-        value,
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
-        overflow: TextOverflow.ellipsis,
+      subtitle: subtitle != null ? Text(subtitle!, style: subtitleStyle) : null,
+      trailing: Flexible(
+        child: Text(
+          value,
+          style: valueStyle,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
       ),
     );
 
@@ -380,13 +430,14 @@ class _SettingTile extends StatelessWidget {
       return ListTile(
         leading: Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
         title: Text(label),
+        subtitle: subtitle != null ? Text(subtitle!, style: subtitleStyle) : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(
                 value,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 14),
+                style: valueStyle,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -399,5 +450,262 @@ class _SettingTile extends StatelessWidget {
     }
 
     return tile;
+  }
+}
+
+/// Dialog showing auto-fetched exchange rates with a Refresh button.
+/// Rates are fetched from a live API — no manual entry needed.
+class _ExchangeRatesDialog extends StatefulWidget {
+  final AuthProvider auth;
+
+  const _ExchangeRatesDialog({required this.auth});
+
+  @override
+  State<_ExchangeRatesDialog> createState() => _ExchangeRatesDialogState();
+}
+
+class _ExchangeRatesDialogState extends State<_ExchangeRatesDialog> {
+  bool _refreshing = false;
+
+  Future<void> _refresh() async {
+    setState(() => _refreshing = true);
+    await widget.auth.refreshExchangeRates();
+    if (!mounted) return;
+    setState(() => _refreshing = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.auth.error != null
+              ? widget.auth.error!
+              : 'Exchange rates updated',
+        ),
+        backgroundColor: widget.auth.error != null
+            ? Colors.red.shade700
+            : Colors.green,
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-fetch if no rates are set
+    if (widget.auth.user?.exchangeRates?.isEmpty ?? true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseCurrency = widget.auth.user?.currency ?? 'PKR';
+    final rates = widget.auth.user?.exchangeRates ?? <String, double>{};
+    final otherCurrencies = Constants.supportedCurrencies
+        .where((c) => c.code != baseCurrency)
+        .toList();
+
+    return AlertDialog(
+      title: Text('Exchange Rates (1 X = ? $baseCurrency)'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _refreshing
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  Text(
+                    'Rates are fetched automatically from a live API. '
+                    'Dashboard totals convert all transactions to $baseCurrency.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...otherCurrencies.map((c) {
+                    final rate = rates[c.code];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${c.symbol}  ${c.code}',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            rate != null
+                                ? '1 ${c.code} = ${rate.toStringAsFixed(2)} $baseCurrency'
+                                : '—',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        ElevatedButton(
+          onPressed: _refreshing ? null : _refresh,
+          child: _refreshing
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Refresh'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for changing the user's password.
+/// StatefulWidget for proper lifecycle management of controllers and
+/// the saving state — avoids setState-after-dispose assertions.
+class _ChangePasswordDialog extends StatefulWidget {
+  final AuthProvider auth;
+
+  const _ChangePasswordDialog({required this.auth});
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _change() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final success = await widget.auth.changePassword(
+      _currentController.text,
+      _newController.text,
+    );
+
+    if (!mounted) return;
+
+    Navigator.of(context).pop();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Password changed successfully'
+              : (widget.auth.error ?? 'Failed to change password'),
+        ),
+        backgroundColor: success ? Colors.green : Colors.red.shade700,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Change Password'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _currentController,
+              decoration: const InputDecoration(
+                labelText: 'Current Password',
+              ),
+              obscureText: _obscure,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _newController,
+              decoration: const InputDecoration(
+                labelText: 'New Password',
+              ),
+              obscureText: _obscure,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Required';
+                }
+                if (value.length < 8) {
+                  return 'Min 8 characters';
+                }
+                if (value == _currentController.text) {
+                  return "You're using the same password. For better security, consider choosing a different one";
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _confirmController,
+              decoration: const InputDecoration(
+                labelText: 'Confirm New Password',
+              ),
+              obscureText: _obscure,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Required';
+                }
+                if (value != _newController.text) {
+                  return 'Passwords do not match';
+                }
+                return null;
+              },
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _obscure = !_obscure),
+                child: Text(_obscure ? 'Show' : 'Hide'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _change,
+          child: const Text('Change'),
+        ),
+      ],
+    );
   }
 }

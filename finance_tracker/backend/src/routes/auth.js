@@ -1,14 +1,16 @@
 const express = require('express');
+const crypto = require('crypto');
 const { db } = require('../config/db');
-const { users, refreshTokens } = require('../db/schema');
+const { users, refreshTokens, passwordResetTokens } = require('../db/schema');
 const { eq, and, isNull, gt } = require('drizzle-orm');
 const { hashPassword, comparePassword } = require('../utils/password');
 const { generateTokens, verifyRefreshToken, hashToken } = require('../utils/jwt');
-const { registerSchema, loginSchema, refreshSchema } = require('../validators/auth.schema');
+const { registerSchema, loginSchema, refreshSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema } = require('../validators/auth.schema');
 const validate = require('../middleware/validate');
 const authenticate = require('../middleware/auth');
-const { authLimiter } = require('../middleware/rate-limit');
+const { authLimiter, passwordResetLimiter } = require('../middleware/rate-limit');
 const { sendSuccess, sendError } = require('../utils/response');
+const { sendOtpEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -228,7 +230,7 @@ router.get('/me', authenticate, async (req, res) => {
  */
 router.put('/me', authenticate, async (req, res, next) => {
   try {
-    const { currency, timezone, name } = req.body;
+    const { currency, timezone, name, exchangeRates } = req.body;
 
     const updates = {};
     if (currency !== undefined) {
@@ -236,6 +238,8 @@ router.put('/me', authenticate, async (req, res, next) => {
         return sendError(res, 'Currency must be a 3-letter code', 'VALIDATION_ERROR', 400);
       }
       updates.currency = currency.toUpperCase();
+      // Rates are relative to the base currency — reset when it changes
+      updates.exchangeRates = null;
     }
     if (timezone !== undefined) {
       updates.timezone = timezone;
@@ -245,6 +249,20 @@ router.put('/me', authenticate, async (req, res, next) => {
         return sendError(res, 'Name cannot be empty', 'VALIDATION_ERROR', 400);
       }
       updates.name = name.trim();
+    }
+    if (exchangeRates !== undefined) {
+      if (exchangeRates === null) {
+        updates.exchangeRates = null;
+      } else if (typeof exchangeRates === 'object') {
+        // Validate: { "USD": 280, "EUR": 300, ... }
+        const cleaned = {};
+        for (const [code, rate] of Object.entries(exchangeRates)) {
+          if (typeof code === 'string' && code.length === 3 && typeof rate === 'number' && rate > 0) {
+            cleaned[code.toUpperCase()] = rate;
+          }
+        }
+        updates.exchangeRates = cleaned;
+      }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -261,10 +279,161 @@ router.put('/me', authenticate, async (req, res, next) => {
         name: users.name,
         currency: users.currency,
         timezone: users.timezone,
+        exchangeRates: users.exchangeRates,
         status: users.status,
       });
 
     return sendSuccess(res, { user: updatedUser });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Generate a 6-digit OTP, store its hash, and email the code to the user.
+ */
+router.post('/forgot-password', passwordResetLimiter, validate(forgotPasswordSchema), async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user) {
+      return sendError(res, 'No account found with that email', 'NOT_FOUND', 404);
+    }
+
+    // Generate a 6-digit OTP and store its hash (same table, same expiry)
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenHash = hashToken(otp);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await db.insert(passwordResetTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+      ipAddress: req.ip,
+    });
+
+    // Email the OTP to the user
+    await sendOtpEmail(user.email, otp);
+
+    return sendSuccess(res, {
+      message: 'A 6-digit reset code has been sent to your email',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password using a valid reset token.
+ */
+router.post('/reset-password', passwordResetLimiter, validate(resetPasswordSchema), async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    const incomingHash = hashToken(token);
+
+    // Look up a valid, unused, non-expired reset token
+    const [resetRecord] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, incomingHash),
+          isNull(passwordResetTokens.usedAt),
+          gt(passwordResetTokens.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    if (!resetRecord) {
+      return sendError(res, 'Invalid or expired reset token', 'INVALID_TOKEN', 400);
+    }
+
+    // Prevent reusing the current password
+    const [user] = await db
+      .select({ passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, resetRecord.userId))
+      .limit(1);
+
+    if (user && await comparePassword(password, user.passwordHash)) {
+      return sendError(
+        res,
+        'New password must be different from your current password',
+        'SAME_PASSWORD',
+        400
+      );
+    }
+
+    // Hash the new password and update the user
+    const passwordHash = await hashPassword(password);
+    await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, resetRecord.userId));
+
+    // Mark the reset token as used
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, resetRecord.id));
+
+    // Revoke all existing refresh tokens so old sessions are invalidated
+    await db
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(eq(refreshTokens.userId, resetRecord.userId));
+
+    return sendSuccess(res, { message: 'Password reset successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/auth/me/password
+ * Change password for the authenticated user.
+ */
+router.put('/me/password', authenticate, validate(changePasswordSchema), async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Fetch the user's current password hash
+    const [user] = await db
+      .select({ id: users.id, passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, req.user.id))
+      .limit(1);
+
+    if (!user) {
+      return sendError(res, 'User not found', 'NOT_FOUND', 404);
+    }
+
+    const isMatch = await comparePassword(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return sendError(res, 'Current password is incorrect', 'INVALID_CREDENTIALS', 401);
+    }
+
+    // Prevent reusing the current password
+    if (await comparePassword(newPassword, user.passwordHash)) {
+      return sendError(
+        res,
+        'New password must be different from your current password',
+        'SAME_PASSWORD',
+        400
+      );
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, req.user.id));
+
+    return sendSuccess(res, { message: 'Password changed successfully' });
   } catch (err) {
     next(err);
   }

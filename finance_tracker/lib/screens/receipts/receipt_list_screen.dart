@@ -116,6 +116,7 @@ class _ReceiptTile extends StatelessWidget {
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (hasAmount) ...[
               Text(
@@ -130,7 +131,7 @@ class _ReceiptTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
             ],
             _statusBadge(receipt.status),
           ],

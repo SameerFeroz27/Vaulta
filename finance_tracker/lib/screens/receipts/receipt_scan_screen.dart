@@ -278,11 +278,11 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       children: [
         SegmentedButton<_Mode>(
           segments: const [
-            ButtonSegment(value: _Mode.image, label: Text('Cash Receipt')),
-            ButtonSegment(value: _Mode.online, label: Text('Online Receipt')),
+            ButtonSegment(value: _Mode.image, label: Text('Cash')),
+            ButtonSegment(value: _Mode.online, label: Text('Online')),
             ButtonSegment(
               value: _Mode.bankMessage,
-              label: Text('Bank Message'),
+              label: Text('Bank SMS'),
             ),
           ],
           selected: {_mode},
@@ -630,8 +630,19 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Flexible(
+            child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
