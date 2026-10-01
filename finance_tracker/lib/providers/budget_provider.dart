@@ -25,20 +25,13 @@ class BudgetProvider extends ChangeNotifier {
   String? get error => _error;
   String get selectedMonth => _selectedMonth;
 
-  String _shiftMonth(String month, int delta) {
-    final parts = month.split('-');
-    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]));
-    final shifted = DateTime(date.year, date.month + delta);
-    return '${shifted.year}-${shifted.month.toString().padLeft(2, '0')}';
-  }
-
   void previousMonth() {
-    _selectedMonth = _shiftMonth(_selectedMonth, -1);
+    _selectedMonth = Formatters.shiftMonth(_selectedMonth, -1);
     loadBudgets(force: true);
   }
 
   void nextMonth() {
-    _selectedMonth = _shiftMonth(_selectedMonth, 1);
+    _selectedMonth = Formatters.shiftMonth(_selectedMonth, 1);
     loadBudgets(force: true);
   }
 

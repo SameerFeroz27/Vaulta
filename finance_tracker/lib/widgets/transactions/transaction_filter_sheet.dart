@@ -16,6 +16,7 @@ class TransactionFilterSheet extends StatefulWidget {
 
 class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
   late String? _type;
+  late String? _status;
   late int? _source;
   late String? _search;
   late String _sort;
@@ -26,6 +27,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
     super.initState();
     final f = widget.currentFilters;
     _type = f.type;
+    _status = f.status;
     _source = f.source;
     _search = f.search;
     _sort = f.sort;
@@ -60,6 +62,28 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
               ],
               selected: {_type},
               onSelectionChanged: (set) => setState(() => _type = set.first),
+            ),
+            const SizedBox(height: 16),
+
+            // Status filter — lets the review queue be isolated from settled rows.
+            const Text('Status', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              initialValue: _status,
+              decoration: const InputDecoration(
+                hintText: 'All statuses',
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: null, child: Text('All statuses')),
+                DropdownMenuItem(
+                  value: 'needs_review',
+                  child: Text('Needs Review'),
+                ),
+                DropdownMenuItem(value: 'confirmed', child: Text('Confirmed')),
+                DropdownMenuItem(value: 'archived', child: Text('Archived')),
+              ],
+              onChanged: (v) => setState(() => _status = v),
             ),
             const SizedBox(height: 16),
 
@@ -137,10 +161,16 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
                 ),
                 const Spacer(),
                 ElevatedButton(
+                  // Built explicitly rather than via copyWith: copyWith treats null as
+                  // "keep the old value", so choosing "All" could never clear a filter.
                   onPressed: () => Navigator.pop(
                     context,
-                    widget.currentFilters.copyWith(
+                    TransactionFilters(
+                      // Not editable in this sheet, so carried over as-is.
+                      month: widget.currentFilters.month,
+                      category: widget.currentFilters.category,
                       type: _type,
+                      status: _status,
                       source: _source,
                       search: _search,
                       sort: _sort,

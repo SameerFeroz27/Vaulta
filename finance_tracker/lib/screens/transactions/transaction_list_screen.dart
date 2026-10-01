@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/transaction.dart';
 import '../../providers/transaction_provider.dart';
+import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/error_state.dart';
+import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/transactions/transaction_card.dart';
 import '../../widgets/transactions/transaction_filter_sheet.dart';
 import 'transaction_detail_screen.dart';
@@ -104,73 +107,134 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
   Widget _buildBody(TransactionProvider provider) {
     if (provider.isLoading && provider.transactions.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingIndicator();
     }
 
     if (provider.error != null && provider.transactions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 12),
-            Text(provider.error!, style: TextStyle(color: Colors.grey[600])),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: provider.loadTransactions,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+      return ErrorState(
+        message: provider.error!,
+        onRetry: provider.loadTransactions,
       );
     }
 
-    if (provider.transactions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.receipt_long_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No transactions yet',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap + to add your first one',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
+    final content = provider.transactions.isEmpty
+        ? _buildEmptyState(provider)
+        : RefreshIndicator(
+            onRefresh: provider.loadTransactions,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.only(bottom: 80),
+              itemCount:
+                  provider.transactions.length + (provider.hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == provider.transactions.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
 
-    return RefreshIndicator(
-      onRefresh: provider.loadTransactions,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.only(bottom: 80),
-        itemCount: provider.transactions.length + (provider.hasMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == provider.transactions.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-
-          final t = provider.transactions[index];
-          return TransactionCard(
-            transaction: t,
-            onTap: () => _openDetail(t),
+                final t = provider.transactions[index];
+                return TransactionCard(
+                  transaction: t,
+                  onTap: () => _openDetail(t),
+                );
+              },
+            ),
           );
-        },
+
+    // Hide the banner once the user is already looking at the review queue.
+    final showReviewBanner =
+        provider.pendingReviewCount > 0 &&
+        provider.filters.status != 'needs_review';
+
+    if (!showReviewBanner) return content;
+
+    return Column(
+      children: [
+        _buildReviewBanner(provider),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  /// Makes the review queue reachable in one tap — otherwise held-back transactions
+  /// accumulate invisibly, since they are excluded from dashboard totals.
+  Widget _buildReviewBanner(TransactionProvider provider) {
+    final count = provider.pendingReviewCount;
+    return Material(
+      color: Colors.orange.withValues(alpha: 0.12),
+      child: InkWell(
+        onTap: () => _showPendingReview(provider),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.pending_actions_outlined,
+                color: Colors.orange,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  count == 1
+                      ? '1 transaction needs review'
+                      : '$count transactions need review',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Text(
+                'Show',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange,
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18, color: Colors.orange),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  void _showPendingReview(TransactionProvider provider) {
+    final f = provider.filters;
+    provider.setFilters(
+      TransactionFilters(
+        month: f.month,
+        source: f.source,
+        category: f.category,
+        type: f.type,
+        search: f.search,
+        sort: f.sort,
+        order: f.order,
+        status: 'needs_review',
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(TransactionProvider provider) {
+    final filtered = provider.filters.hasActiveFilters;
+    return EmptyState(
+      icon: Icons.receipt_long_outlined,
+      title: filtered ? 'No transactions match' : 'No transactions yet',
+      subtitle: filtered
+          ? 'Try adjusting or clearing the filters'
+          : 'Tap + to add your first one',
+      action: filtered
+          ? TextButton(
+              onPressed: provider.clearFilters,
+              child: const Text('Clear filters'),
+            )
+          : null,
     );
   }
 }

@@ -4,6 +4,7 @@ import '../models/user.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/exchange_rate_service.dart';
+import '../utils/errors.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -176,7 +177,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
+      _error = errorMessage(e);
       notifyListeners();
       return false;
     }

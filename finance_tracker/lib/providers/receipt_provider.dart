@@ -30,20 +30,22 @@ class ReceiptProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    try {
-      final result = await _receiptService.list();
-      _receipts = result.receipts;
-      _pagination = result.pagination;
-    } catch (e) {
-      _error = e.toString();
-    }
+    await _fetchReceipts();
 
     _isLoading = false;
     notifyListeners();
   }
 
   /// Refresh the list after a new scan completes.
+  ///
+  /// Delegates to the same fetch as [loadReceipts] but, unlike it, does not
+  /// toggle [isLoading] or notify before the fetch.
   Future<void> refresh() async {
+    await _fetchReceipts();
+    notifyListeners();
+  }
+
+  Future<void> _fetchReceipts() async {
     try {
       final result = await _receiptService.list();
       _receipts = result.receipts;
@@ -52,7 +54,6 @@ class ReceiptProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     }
-    notifyListeners();
   }
 
   /// Clear all cached state — called on login/register/logout.

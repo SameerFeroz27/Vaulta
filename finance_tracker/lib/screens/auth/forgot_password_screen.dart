@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../widgets/common/button_spinner.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -102,14 +103,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ElevatedButton(
                         onPressed: auth.isLoading ? null : _handleRequestReset,
                         child: auth.isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
+                            ? const ButtonSpinner()
                             : const Text('Send Reset Code'),
                       ),
                       const SizedBox(height: 16),

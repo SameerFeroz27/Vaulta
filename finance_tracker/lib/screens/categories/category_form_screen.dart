@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/category.dart';
 import '../../providers/category_provider.dart';
+import '../../utils/errors.dart';
+import '../../widgets/common/button_spinner.dart';
 import '../../widgets/common/confirm_dialog.dart';
 
 /// Form for creating or editing a category.
@@ -171,7 +173,7 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
     if (str.contains('FORBIDDEN')) {
       return 'You can only edit your own custom categories.';
     }
-    return str.replaceFirst('Exception: ', '');
+    return errorMessage(error);
   }
 
   @override
@@ -311,14 +313,7 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
             FilledButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
+                  ? const ButtonSpinner()
                   : Text(_isEditing ? 'Update' : 'Create'),
             ),
 

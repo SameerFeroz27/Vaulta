@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/common/button_spinner.dart';
 
 class TransactionFormScreen extends StatefulWidget {
   final Transaction? transaction;
@@ -89,8 +90,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       'amount': double.parse(_amountController.text),
       'type': _type,
       'currency': _currency,
-      'transactionDate':
-          '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+      'transactionDate': Formatters.toDateString(_date),
     };
     if (_categoryId != null) body['categoryId'] = _categoryId;
     if (_merchantController.text.trim().isNotEmpty) {
@@ -265,11 +265,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   isDense: true,
                   suffixIcon: Icon(Icons.calendar_today_outlined, size: 20),
                 ),
-                child: Text(
-                  Formatters.date(
-                    '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
-                  ),
-                ),
+                child: Text(Formatters.date(Formatters.toDateString(_date))),
               ),
             ),
             const SizedBox(height: 16),
@@ -300,14 +296,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
             ElevatedButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
+                  ? const ButtonSpinner()
                   : Text(_isEdit ? 'Update' : 'Add Transaction'),
             ),
           ],

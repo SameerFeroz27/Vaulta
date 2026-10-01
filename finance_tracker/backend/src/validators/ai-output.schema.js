@@ -13,7 +13,11 @@ const aiTransactionSchema = z.object({
   date: z.string().optional(),
   time: z.string().optional(),
   currency: z.string().length(3).optional(),
-  type: z.enum(['expense', 'income']).optional().default('expense'),
+  // No default: an absent type must stay absent so the worker can route it to
+  // review instead of silently filing it as an expense.
+  type: z.enum(['expense', 'income']).optional(),
+  typeConfidence: z.number().min(0).max(1).optional(),
+  directionEvidence: z.string().optional(),
   paymentMethod: z.string().optional(),
   cardLast4: z.string().length(4).optional(),
   bankReference: z.string().optional(),

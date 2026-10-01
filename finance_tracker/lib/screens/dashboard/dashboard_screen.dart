@@ -4,15 +4,20 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../providers/loan_provider.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/dashboard/expense_bar_chart.dart';
 import '../../widgets/dashboard/expense_pie_chart.dart';
+import '../../widgets/dashboard/loans_card.dart';
 import '../../widgets/dashboard/summary_card.dart';
 import '../transactions/transaction_form_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  /// Switches the shell to the Loans tab, so the loans card can be tapped through.
+  final VoidCallback? onOpenLoans;
+
+  const DashboardScreen({this.onOpenLoans, super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -24,25 +29,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().loadDashboard();
+      context.read<LoanProvider>().loadSummary();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DashboardProvider>();
-    final userCurrency =
-        context.watch<AuthProvider>().user?.currency ?? 'PKR';
+    final auth = context.watch<AuthProvider>();
+    final loans = context.watch<LoanProvider>();
+    final userCurrency = auth.user?.currency ?? 'PKR';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Dashboard')),
       body: RefreshIndicator(
-        onRefresh: provider.loadDashboard,
-        child: _buildBody(provider, userCurrency),
+        onRefresh: () async {
+          // Captured before the await: the context may be gone once it completes.
+          final loanProvider = context.read<LoanProvider>();
+          await provider.loadDashboard();
+          await loanProvider.loadSummary();
+        },
+        child: _buildBody(provider, userCurrency, loans, auth),
       ),
     );
   }
 
-  Widget _buildBody(DashboardProvider provider, String userCurrency) {
+  Widget _buildBody(
+    DashboardProvider provider,
+    String userCurrency,
+    LoanProvider loans,
+    AuthProvider auth,
+  ) {
     if (provider.isLoading && provider.summary == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -121,6 +138,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 label: const Text('Add Transaction'),
               ),
             ),
+            // Loans are independent of transactions, so they show here too.
+            _buildLoansSection(loans, userCurrency, auth),
           ] else ...[
             // Summary cards
             Padding(
@@ -168,6 +187,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             ),
+
+            // Lending position sits directly under the income/expense/balance tiles.
+            _buildLoansSection(loans, userCurrency, auth),
             const SizedBox(height: 8),
 
             // Expense by Category
@@ -245,6 +267,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ],
       ],
+    );
+  }
+
+  /// The lending section, or nothing at all when there is no lending to report —
+  /// an empty card would be noise.
+  Widget _buildLoansSection(
+    LoanProvider loans,
+    String userCurrency,
+    AuthProvider auth,
+  ) {
+    if (loans.totalTheyOwe <= 0 && loans.totalIOwe <= 0 && loans.overdueCount <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    return LoansCard(
+      theyOwe: loans.totalTheyOwe,
+      iOwe: loans.totalIOwe,
+      overdueCount: loans.overdueCount,
+      overduePeople: loans.overduePeople,
+      currency: userCurrency,
+      exchangeRates: auth.user?.exchangeRates,
+      onTap: widget.onOpenLoans ?? () {},
     );
   }
 }

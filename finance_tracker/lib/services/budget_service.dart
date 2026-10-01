@@ -24,17 +24,8 @@ class BudgetService {
     final budgets = (data['budgets'] as List<dynamic>)
         .map((json) => Budget.fromJson(json as Map<String, dynamic>))
         .toList();
-
-    final paginationJson = data['pagination'] as Map<String, dynamic>;
-    final pPage = paginationJson['page'] as int;
-    final pTotalPages = paginationJson['totalPages'] as int;
-    final pagination = Pagination(
-      page: pPage,
-      limit: paginationJson['limit'] as int,
-      total: paginationJson['total'] as int,
-      totalPages: pTotalPages,
-      hasNext: pPage < pTotalPages,
-      hasPrev: pPage > 1,
+    final pagination = Pagination.fromJson(
+      data['pagination'] as Map<String, dynamic>,
     );
 
     return (budgets: budgets, pagination: pagination);

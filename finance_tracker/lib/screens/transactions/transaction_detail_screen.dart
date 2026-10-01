@@ -60,6 +60,11 @@ class TransactionDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
+          if (t.needsReview) ...[
+            _buildReviewCard(context),
+            const SizedBox(height: 8),
+          ],
+
           // Details card
           Card(
             child: Padding(
@@ -70,6 +75,13 @@ class TransactionDetailScreen extends StatelessWidget {
                     label: 'Type',
                     value: t.isExpense ? 'Expense' : 'Income',
                   ),
+                  if (t.isAutoClassified)
+                    _DetailRow(
+                      label: 'Decided by',
+                      value: t.typeConfidence == null
+                          ? 'AI'
+                          : 'AI (${(t.typeConfidence! * 100).round()}% confident)',
+                    ),
                   _DetailRow(
                     label: 'Category',
                     value:
@@ -96,6 +108,107 @@ class TransactionDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// One-tap resolution of a transaction whose direction the AI could not settle.
+  Widget _buildReviewCard(BuildContext context) {
+    final t = transaction;
+
+    return Card(
+      color: Colors.orange.withValues(alpha: 0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.pending_actions_outlined,
+                  color: Colors.orange,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Confirm the direction',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Only the consequence the user cannot see elsewhere: the row is held
+            // back from their totals. The type is in the rows above.
+            Text(
+              'Not in your totals until you confirm.',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _confirmDirection(context),
+                    child: const Text('Confirm'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _flipDirection(context),
+                    child: Text('Change to ${t.isExpense ? 'Income' : 'Expense'}'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDirection(BuildContext context) async {
+    final provider = context.read<TransactionProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    if (await provider.confirmTransaction(transaction.id)) {
+      navigator.pop();
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not confirm the transaction.')),
+      );
+    }
+  }
+
+  /// Flip income/expense and confirm in one step.
+  ///
+  /// The category is deliberately left untouched: AI-filed transactions are
+  /// uncategorized, and silently clearing a category the user set themselves would
+  /// be more surprising than leaving it.
+  Future<void> _flipDirection(BuildContext context) async {
+    final provider = context.read<TransactionProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final newType = transaction.isExpense ? 'income' : 'expense';
+
+    final ok = await provider.updateTransaction(transaction.id, {
+      'type': newType,
+      'status': 'confirmed',
+    });
+
+    if (ok) {
+      navigator.pop();
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update the transaction.')),
+      );
+    }
   }
 
   void _openEdit(BuildContext context) {

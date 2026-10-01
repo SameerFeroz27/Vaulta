@@ -99,9 +99,9 @@ Vaulta is a monorepo with two independent applications that communicate over RES
 | `/register` | `RegisterScreen` | Name + email + password |
 | `/forgot-password` | `ForgotPasswordScreen` | Request reset token |
 | `/reset-password` | `ResetPasswordScreen` | New password (receives token via `state.extra`) |
-| `/` | `MainScaffold` | 3-tab bottom nav: Dashboard, Transactions, Settings |
+| `/` | `MainScaffold` | 4-tab bottom nav: Dashboard, Transactions, Loans, Settings |
 
-**MainScaffold:** `BottomNavigationBar` with `IndexedStack` (preserves state across tabs).
+**MainScaffold:** `BottomNavigationBar` with `IndexedStack` (preserves state across tabs). The Loans screen adds the app's only nested tabs — a top `TabBar` with *Loans* / *By person*; because the screen stays mounted, the selected sub-tab persists across bottom-nav switches.
 
 ### 2.2 State Management — Providers (`lib/providers/`)
 
@@ -114,6 +114,7 @@ All providers extend `ChangeNotifier`.
 | `DashboardProvider` | Dashboard summary (income, expense, balance, count, top merchants), expense-by-category, expense-by-source, expense trend, budget status. Month navigation. |
 | `CategoryProvider` | Category list (global defaults + user custom), create, update, delete. |
 | `BudgetProvider` | Budget list with computed spending, create, update, delete. Month navigation. |
+| `LoanProvider` | Loan list, pagination (infinite scroll), filters (direction, status, search, sort, order), the per-person summary plus `overdueCount` / `overduePeople`, loan CRUD, record/delete repayment. Derives `totalTheyOwe` / `totalIOwe` / `netPosition` from the summary for the dashboard. Notifies `TransactionProvider` on changes, since loan money movements land in the ledger. |
 | `ReceiptProvider` | Receipt scan upload (image + bank message), poll status, receipt list (history), reprocess. |
 | `ThemeProvider` | Theme mode (`light` / `dark` / `system`), persisted in secure storage. |
 
@@ -136,6 +137,7 @@ All providers extend `ChangeNotifier`.
 | `TransactionService` | list (with filters), create, get, update, delete, confirm |
 | `CategoryService` | list, create, update, delete |
 | `BudgetService` | list, create, update, delete |
+| `LoanService` | list (with filters), summary (people + overdue count), get (loan + payments), create, update, delete, addPayment, deletePayment |
 | `DashboardService` | summary, expense-by-category, expense-by-source, expense-trend, budget-status |
 | `ReceiptService` | scan (image upload), bank-message, list, get (poll), reprocess |
 
@@ -144,12 +146,16 @@ All providers extend `ChangeNotifier`.
 | Model | Key Fields |
 |-------|------------|
 | `User` | `id`, `email`, `name`, `currency`, `timezone`, `exchangeRates` (`Map<String, double>?` — rates relative to base currency, e.g. `{'USD': 280}` means 1 USD = 280 base units) |
-| `Transaction` | `id`, `amount`, `currency`, `type` (expense/income), `status`, `merchant`, `description`, `occurredAt`, `transactionDate`, `source`, `category`, `receiptId`, `cardLast4`, `bankReference` |
+| `Transaction` | `id`, `amount`, `currency`, `type` (expense/income), `typeConfidence` (AI's confidence in the direction; `null` when user-chosen), `typeSource` (`ai_auto`/`user_override`/`manual`), `status`, `merchant`, `description`, `occurredAt`, `transactionDate`, `source`, `category`, `receiptId`, `cardLast4`, `bankReference` |
 | `TransactionFilters` | `type`, `sourceId`, `search`, `sortBy`, `order` |
 | `Pagination` | `page`, `limit`, `total`, `totalPages` |
 | `Category` | `id`, `name`, `icon`, `color`, `transactionType`, `isGlobal` |
 | `Budget` | `id`, `amount`, `month`, `categoryId`, `category`, `spent`, `remaining`, `percentage`, `overBudget` |
 | `BudgetStatus` | Overall + per-category budget status with spending |
+| `Loan` | `id`, `counterparty`, `direction` (lent/borrowed), `principal`, `issueDate`, `dueDate`, `notes`, `paid`, `outstanding` (floors at 0), `surplus`, `state` (open/settled), `overdue`, `transactionId`. Derived fields are recomputed locally if the API omits them. |
+| `LoanPayment` | `id`, `amount`, `paymentDate`, `transactionId`, `note` |
+| `LoanSummaryPerson` | `person`, `theyOwe`, `iOwe`, `repaid`, `loanCount`, `net`, `state` |
+| `LoanFilters` | `direction`, `state`, `search`, `sort`, `order` |
 | `DashboardSummary` | `totalIncome`, `totalExpense`, `balance`, `transactionCount`, `topMerchants` |
 | `TopMerchant` | `merchant`, `totalAmount`, `transactionCount` |
 | `ExpenseBreakdown` | `categoryId`, `categoryName`, `icon`, `color`, `total`, `percentage` |
@@ -174,22 +180,22 @@ All providers extend `ChangeNotifier`.
 
 | Screen | Description |
 |--------|-------------|
-| `DashboardScreen` | Month selector (prev/next). Summary cards: Income, Expense, Balance (color-coded), transaction count. Expense-by-Category pie chart. Expense-by-Source pie chart. Expense Trend bar chart. Top Merchants list. Pull-to-refresh. Empty-state with "Add Transaction" CTA. |
+| `DashboardScreen` | Month selector (prev/next). Summary cards: Income, Expense, Balance (color-coded), transaction count. A **Loans section** below the tiles (owed to me / I owe, plus who is overdue when anything is late) that taps through to the Loans tab; it is shown even when there are no transactions yet. Expense-by-Category pie chart. Expense-by-Source pie chart. Expense Trend bar chart. Top Merchants list. Pull-to-refresh. Empty-state with "Add Transaction" CTA. |
 
 #### Transactions (`screens/transactions/`)
 
 | Screen | Description |
 |--------|-------------|
-| `TransactionListScreen` | Paginated list with infinite scroll, pull-to-refresh, empty state. App bar: scan-receipt icon, filter icon. FAB to add. |
+| `TransactionListScreen` | Paginated list with infinite scroll, pull-to-refresh, empty state. A review banner ("N transactions need review") appears above the list when any are pending and jumps straight to the review queue, since those rows are excluded from dashboard totals and would otherwise be invisible. App bar: scan-receipt icon, filter icon. FAB to add. |
 | `TransactionFormScreen` | Add/edit. Type toggle (expense/income), amount (currency-prefixed), **per-transaction currency dropdown** (all 9 currencies), live conversion hint ("≈ ₨{converted} {baseCurrency}") when currency differs from base, source dropdown (Card/Cash/Online), category dropdown (filtered by type), date picker, merchant, description. |
-| `TransactionDetailScreen` | Amount with sign, status chip (Confirmed / Needs Review / Archived). Rows: type, category (icon+name), source, date, merchant, description, card last4, bank reference. Edit & delete actions. |
-| `TransactionFilterSheet` (widget) | Bottom sheet: type (all/expense/income), source, text search, sort (date/amount), order (asc/desc), "Clear All". |
+| `TransactionDetailScreen` | Amount with sign, status chip (Confirmed / Needs Review / Archived). Rows: type, decided-by (when AI-classified), category (icon+name), source, date, merchant, description, card last4, bank reference. For `needs_review` rows a review card offers one-tap **Confirm** or **Change to Income/Expense**. Edit & delete actions. |
+| `TransactionFilterSheet` (widget) | Bottom sheet: type (all/expense/income), status (all/needs review/confirmed/archived), source, text search, sort (date/amount), order (asc/desc), "Clear All". Filters are built explicitly on Apply rather than via `copyWith`, which treats null as "keep the old value" and so could never clear a filter back to All. |
 
 #### Receipts (`screens/receipts/`)
 
 | Screen | Description |
 |--------|-------------|
-| `ReceiptScanScreen` | Three modes via segmented button: Cash Receipt (camera/gallery), Online Receipt (screenshot upload), Bank Message (paste SMS). Expense/Income toggle for image modes. Dismissible instructions card. Polls receipt status every 2s until terminal state. Shows parsed transaction on success. "Try Again" reprocess on failure. |
+| `ReceiptScanScreen` | Three modes via segmented button: Cash Receipt (camera/gallery), Online Receipt (screenshot upload), Bank Message (paste SMS). A three-way **Auto / Expense / Income** toggle for image modes, defaulting to Auto so the AI decides the direction; an explicit choice overrides it. Dismissible instructions card. Polls receipt status every 2s until terminal state. Shows the parsed transaction plus the AI's confidence and the evidence it used. When the direction was held back, the result screen resolves it in place with one-tap **Confirm** / **Change to Income-Expense** rather than sending the user to another tab. "Try Again" reprocess on failure. |
 | `ReceiptListScreen` | Scan history. Input-type icon (Cash/Card/Online), merchant, date, amount, status badge. Pull-to-refresh. |
 
 #### Categories (`screens/categories/`)
@@ -205,6 +211,17 @@ All providers extend `ChangeNotifier`.
 |--------|-------------|
 | `BudgetListScreen` | Month selector. Overall Budget + per-category budgets with progress cards (amount, spent, remaining, percentage, over-budget warning). |
 | `BudgetFormScreen` | Amount (currency-prefixed), month (prev/next navigator), category dropdown ("Overall Budget" or expense category). Delete with confirmation. Conflict detection. |
+
+#### Loans (`screens/loans/`)
+
+| Screen | Description |
+|--------|-------------|
+| `LoanListScreen` | The Loans screen: a shell holding a top `TabBar` with **Loans** and **By person**. Owns the app bar, the FAB, the overdue banner (shown above both tabs — an overdue loan matters on either), and the filter sheet, whose icon appears only on the Loans tab since filtering narrows the list. Loads the provider on mount rather than from whichever tab builds first. |
+| `LoanDetailScreen` | Outstanding amount as the hero, direction label, progress bar (`paid` of `principal`), issued/due dates with an overdue badge, notes, and a surplus line when money was paid beyond the amount ("counted as a gift, tip or refund"). Actions: **Record payment**, edit, remove. Repayment timeline below, each row deletable. |
+| `LoanFormScreen` | Add/edit. Direction toggle (**I lent** / **I borrowed**) with an explanatory caption, person, amount, issue date, optional due date (with a clear button), notes, and — on create only — an "Also record this in my transactions" toggle. The person field carries a hint recommending a capitalised name with a space, e.g. "Sana Malik". |
+| `RecordPaymentSheet` (widget) | Amount (pre-filled with the outstanding balance), payment date, note, and the record-in-transactions toggle. Generates an idempotency key once per sheet so a double tap cannot create two repayments. Warns live when the amount exceeds what is owed, and reports the resulting surplus after saving. |
+| `LoanListView` (widget) | The **Loans** tab: segmented **All / Owed to me / I owe** direction filter, the active loan list with infinite scroll and pull-to-refresh. Empty state distinguishes "No loans yet" from "No loans match these filters" and only the filtered case offers "Clear filters". Navigation is left to the shell, so it takes `onAddLoan` / `onOpenLoan` callbacks. |
+| `LoanPersonSummaryView` (widget) | The **By person** tab: `LoanSummaryTable` with pull-to-refresh and its own empty state ("No one to show yet"). Always shows everyone — the direction filter is a list concern. |
 
 #### Settings (`screens/settings/`)
 
@@ -224,6 +241,13 @@ All providers extend `ChangeNotifier`.
 | `ExpensePieChart` | `dashboard/` | Pie chart for category/source breakdown |
 | `ExpenseBarChart` | `dashboard/` | Bar chart for expense trend |
 | `BudgetProgressCard` | `dashboard/` | Budget progress with bar, spent, remaining |
+| `LoansCard` | `dashboard/` | Lending section directly under the tiles: "Owed to me" and "I owe", plus an **"Overdue: Ali, +1 more"** line shown only when something is actually late (never an empty bar). Converts PKR totals to the base currency when a rate exists; otherwise the ₨ symbol marks them as PKR. Taps through to the Loans tab. |
+| `LoanCard` | `loans/` | Loan list item: counterparty, amount outstanding — or, for an overpaid loan, the surplus as the headline figure so nothing reads as unfinished — progress bar, due date, overdue/settled badge |
+| `LoanListView` | `loans/` | Loans tab content: direction filter, list, empty states |
+| `LoanPersonSummaryView` | `loans/` | By person tab content: the summary table, refresh, empty state |
+| `LoanSummaryTable` | `loans/` | One stacked block per person — name and status, then *Owed to me* / *I owe* / *Net* as right-aligned label-value lines — plus a totals block when there is more than one person. Stacked rather than a column grid because four money columns at phone width forced larger amounts to scale down or truncate. Counts active loans only, so it agrees with the loan list — a person whose loans were all removed reads "No active loans". |
+| `LoanFilterSheet` | `loans/` | Loan filters: person search, status, sort, order |
+| `RecordPaymentSheet` | `loans/` | Record-repayment bottom sheet with idempotency key and surplus warning |
 | `TransactionCard` | `transactions/` | Transaction list item with amount, category, date |
 | `TransactionFilterSheet` | `transactions/` | Filter bottom sheet |
 
@@ -355,12 +379,25 @@ The `boot()` function runs sequentially:
 | PUT | `/budgets/:id` | ✓ | Update: `{ amount?, month?, categoryId? }` |
 | DELETE | `/budgets/:id` | ✓ | Delete budget |
 
+#### Loans (`/api/loans`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/loans` | ✓ | Active loans with `paid`, `outstanding`, `state`, `overdue`. Query: `direction`, `state` (open/settled), `search`, `sort`, `order`, `page`, `limit`. Hidden loans excluded. |
+| GET | `/loans/summary` | ✓ | Per-person table: `theyOwe`, `iOwe`, `repaid`, `net`, `state`, `loanCount`, plus `overdueCount` and `overduePeople` (one entry per person, for the dashboard). The owed figures count **active loans only**, so they agree with the list; `repaid` spans removed loans too, so deleting a loan never erases a repayment. |
+| POST | `/loans` | ✓ | Create: `{ counterparty, direction, principal, issueDate, dueDate?, notes?, recordTransaction? }` |
+| GET | `/loans/:id` | ✓ | Loan + repayment timeline. Active only. |
+| PUT | `/loans/:id` | ✓ | Edit. A principal change keeps the linked disbursement transaction in step. |
+| DELETE | `/loans/:id` | ✓ | Remove: deletes **only this loan's** transactions, keeps repayments, sets `deletedAt`. |
+| POST | `/loans/:id/payments` | ✓ | Record repayment. Overpayment is accepted and returns `surplus` rather than a 400. Idempotency key → 409. |
+| DELETE | `/loans/:id/payments/:paymentId` | ✓ | Remove a repayment and its transaction; the loan reopens if it drops below the principal. |
+
 #### Receipts (`/api/receipts`)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/receipts/scan` | ✓ | Upload receipt image (multipart, field `receipt`). Body: `inputType` (image/virtual_receipt), `transactionType` (expense/income). SHA-256 dedup. Returns 202 with receipt ID. |
-| POST | `/receipts/bank-message` | ✓ | Submit bank SMS: `{ message, transactionType? }`. Max 5000 chars. SHA-256 dedup. Returns 202. |
+| POST | `/receipts/scan` | ✓ | Upload receipt image (multipart, field `receipt`). Body: `inputType` (image/virtual_receipt), optional `transactionType` (expense/income — omit to let the AI decide). SHA-256 dedup. Returns 202 with receipt ID. |
+| POST | `/receipts/bank-message` | ✓ | Submit bank SMS: `{ message }`. Max 5000 chars. SHA-256 dedup. Returns 202. |
 | GET | `/receipts` | ✓ | List user's receipts (paginated). Includes input type, status, merchant, amount. |
 | GET | `/receipts/:id` | ✓ | Poll receipt status + linked transaction. Used by frontend every 2s. |
 | POST | `/receipts/:id/reprocess` | ✓ | Requeue a `failed` or `needs_review` receipt |
@@ -564,9 +601,13 @@ A polling worker forked as a child process by `index.js` (or run standalone via 
 | `sourceId` | integer | FK → sources (restrict) |
 | `categoryId` | integer | FK → categories (set null), nullable |
 | `receiptId` | integer | FK → receipts (set null), nullable |
+| `kind` | text | null for ordinary rows; loan_disbursement / loan_repayment |
+| `loanId` | integer | FK → loans (set null), nullable — links loan money movement |
 | `amount` | numeric(14,2) | |
 | `currency` | char(3) | |
 | `type` | text | expense / income |
+| `typeConfidence` | numeric(3,2) | AI's confidence in `type`; `null` when the user chose the direction |
+| `typeSource` | text | ai_auto / user_override / manual, nullable |
 | `status` | text | needs_review / confirmed / archived |
 | `merchant` | text | nullable |
 | `description` | text | nullable |
@@ -579,7 +620,38 @@ A polling worker forked as a child process by `index.js` (or run standalone via 
 | `createdAt` | timestamptz | default now() |
 | `updatedAt` | timestamptz | default now() |
 
-Seven composite indexes for user-scoped queries + idempotency.
+Seven composite indexes for user-scoped queries + idempotency, plus `(userId, loanId)`.
+
+#### `loans`
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | serial | PK |
+| `userId` | integer | FK → users (cascade) |
+| `counterparty` | text | the friend/relative's name (free text) |
+| `direction` | text | lent (they owe me) / borrowed (I owe them) |
+| `principal` | numeric(14,2) | |
+| `issueDate` | date | |
+| `dueDate` | date | nullable |
+| `notes` | text | nullable |
+| `deletedAt` | timestamptz | nullable — set when removed, hides it from the active list |
+| `createdAt` | timestamptz | default now() |
+| `updatedAt` | timestamptz | default now() |
+
+No `status` and no `currency` column. State (open/settled) and balance are derived from
+repayments, and loans are PKR-only.
+
+#### `loan_payments`
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | serial | PK |
+| `loanId` | integer | FK → loans (cascade) |
+| `userId` | integer | FK → users (cascade) |
+| `amount` | numeric(14,2) | |
+| `paymentDate` | date | |
+| `transactionId` | integer | FK → transactions (set null), nullable |
+| `idempotencyKey` | text | nullable |
+| `note` | text | nullable |
+| `createdAt` | timestamptz | default now() |
 
 #### `budgets`
 | Column | Type | Constraints |
@@ -737,11 +809,15 @@ Groq Vision API (image as base64)
 
 Structured JSON → Zod validation (ai-output.schema.js)
   ├─ valid → continue
-  └─ invalid → mark "needs_review"
+  └─ invalid → mark "needs_review" (no transaction is created)
 
 Duplicate check (amount + date per user)
   ├─ duplicate → mark "duplicate"
-  └─ unique → create transaction (status: confirmed, linked to receipt)
+  └─ unique → resolve direction (services/direction.js)
+                ├─ explicit user override, or AI confidence ≥ threshold
+                │    → create transaction (status: confirmed)
+                └─ otherwise (low confidence, missing type, or hints contradicting
+                   the AI) → create transaction (status: needs_review)
 
 Receipt status → success (or needs_review / failed / duplicate)
 ```
@@ -752,7 +828,7 @@ Receipt status → success (or needs_review / failed / duplicate)
 User pastes bank SMS text
   │
   ▼
-POST /api/receipts/bank-message { message, transactionType? }
+POST /api/receipts/bank-message { message }
   → SHA-256 hash of message text
   → Dedup check: (userId, fileHash)
   → Insert receipt (status: queued, inputType: bank_message, rawText: message)
@@ -763,14 +839,20 @@ Worker claims receipt
   ▼
 Regex pre-processing (services/bank-message.js)
   → extract hints: amount, card last-4, date, time, debit/credit
-  → build structured prompt with hints
+  → build structured prompt from the non-directional hints only; the guessed
+    debit/credit is deliberately withheld so it can serve as an independent
+    cross-check of the AI's answer
   │
   ▼
 Groq Text API (structured extraction prompt)
-  → structured JSON (amount, merchant, date, type, cardLast4, bankReference)
+  → structured JSON (amount, merchant, date, type, typeConfidence,
+    directionEvidence, cardLast4, bankReference)
   │
   ▼
-Zod validation → dedup → create transaction (source: Card)
+Zod validation → dedup → resolve direction
+  → AI answer cross-checked against the keyword hint; a disagreement forces
+    needs_review even at high AI confidence
+  → create transaction (source: Card)
 ```
 
 ### 6.3 Source Mapping
@@ -787,8 +869,8 @@ Zod validation → dedup → create transaction (source: Card)
 |--------|---------|
 | `queued` | Uploaded, waiting for worker |
 | `processing` | Worker has claimed and is processing |
-| `success` | Transaction auto-created and confirmed |
-| `needs_review` | AI parsed but confidence low or validation partial — user reviews |
+| `success` | Transaction created and filed as confirmed |
+| `needs_review` | Two cases: the AI output failed validation (no transaction created — reprocess), or the parse succeeded but the direction is uncertain (a transaction exists, awaiting confirmation) |
 | `failed` | All attempts exhausted (max 3) |
 | `duplicate` | Same receipt/SMS already processed |
 
@@ -796,8 +878,8 @@ Zod validation → dedup → create transaction (source: Card)
 
 | Status | Meaning |
 |--------|---------|
-| `confirmed` | Auto-confirmed by AI or manually confirmed by user |
-| `needs_review` | Awaiting user review |
+| `confirmed` | Filed automatically by the AI at or above the confidence threshold, confirmed by the user, or entered manually |
+| `needs_review` | Direction uncertain — kept with the AI's best guess but excluded from dashboard totals until the user confirms or flips it |
 | `archived` | Archived by user |
 
 ---

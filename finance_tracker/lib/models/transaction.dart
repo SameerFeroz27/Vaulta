@@ -4,6 +4,8 @@ class Transaction {
   final double amount;
   final String currency;
   final String type; // 'expense' or 'income'
+  final double? typeConfidence; // AI confidence in `type`; null when user-chosen
+  final String? typeSource; // 'ai_auto', 'user_override', 'manual'
   final String status; // 'needs_review', 'confirmed', 'archived'
   final String? merchant;
   final String? description;
@@ -24,6 +26,8 @@ class Transaction {
     required this.amount,
     required this.currency,
     required this.type,
+    this.typeConfidence,
+    this.typeSource,
     required this.status,
     this.merchant,
     this.description,
@@ -46,6 +50,10 @@ class Transaction {
       amount: double.parse(json['amount'].toString()),
       currency: json['currency'] as String? ?? 'PKR',
       type: json['type'] as String? ?? 'expense',
+      typeConfidence: json['typeConfidence'] == null
+          ? null
+          : double.tryParse(json['typeConfidence'].toString()),
+      typeSource: json['typeSource'] as String?,
       status: json['status'] as String? ?? 'confirmed',
       merchant: json['merchant'] as String?,
       description: json['description'] as String?,
@@ -66,6 +74,9 @@ class Transaction {
   bool get isExpense => type == 'expense';
   bool get isIncome => type == 'income';
   bool get needsReview => status == 'needs_review';
+
+  /// Whether the direction was decided automatically rather than chosen by the user.
+  bool get isAutoClassified => typeSource == 'ai_auto';
 }
 
 /// Pagination metadata returned by the list endpoint.

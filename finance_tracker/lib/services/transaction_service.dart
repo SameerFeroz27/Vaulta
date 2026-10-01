@@ -33,6 +33,19 @@ class TransactionService {
     return Transaction.fromJson(data['transaction']);
   }
 
+  /// Count transactions with a given status without downloading the rows.
+  /// Used to show how many are waiting on a direction decision.
+  Future<int> countByStatus(String status) async {
+    final data = await apiClient.get(
+      '/transactions',
+      query: {'status': status, 'page': '1', 'limit': '1'},
+    );
+    final pagination = Pagination.fromJson(
+      data['pagination'] as Map<String, dynamic>,
+    );
+    return pagination.total;
+  }
+
   Future<Transaction> create(Map<String, dynamic> body) async {
     final data = await apiClient.post('/transactions', body: body);
     return Transaction.fromJson(data['transaction']);

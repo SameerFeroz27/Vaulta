@@ -87,13 +87,32 @@ class ApiClient {
   }
 
   dynamic _unwrap(http.Response response) {
-    final body = json.decode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> body;
+    try {
+      body = json.decode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      // Not our envelope: an HTML error page from a tunnel or proxy, a wrong base URL,
+      // or an empty body. Without this the JSON decode fails with a FormatException that
+      // says nothing about what actually went wrong.
+      throw ApiException(
+        code: 'INVALID_RESPONSE',
+        message: 'Unexpected response from the server (HTTP ${response.statusCode}). '
+            'Check the backend URL in Settings and that the server is running.',
+      );
+    }
 
     if (body['success'] == true) {
       return body['data'];
     }
 
-    final error = body['error'] as Map<String, dynamic>;
+    final error = body['error'];
+    if (error is! Map<String, dynamic>) {
+      throw ApiException(
+        code: 'INVALID_RESPONSE',
+        message: 'The server returned an error without details (HTTP ${response.statusCode}).',
+      );
+    }
+
     throw ApiException(
       code: error['code'] as String? ?? 'UNKNOWN_ERROR',
       message: error['message'] as String? ?? 'An unknown error occurred',
@@ -144,6 +163,30 @@ class ApiClient {
     await clearTokens();
     onAuthFailed?.call();
     return false;
+  }
+
+  /// Send a request, retrying it once with a fresh access token when the
+  /// server responds 401 TOKEN_EXPIRED. The [send] callback is re-invoked
+  /// after a successful refresh so the new token lands in the headers.
+  Future<http.Response> _withRefreshRetry(
+    Future<http.Response> Function() send,
+  ) async {
+    var response = await send();
+
+    if (response.statusCode == 401) {
+      try {
+        final errorBody = json.decode(response.body) as Map<String, dynamic>;
+        if (errorBody['error']?['code'] == 'TOKEN_EXPIRED') {
+          if (await _tryRefresh()) {
+            response = await send();
+          }
+        }
+      } catch (_) {
+        // response body wasn't JSON; let _unwrap handle it
+      }
+    }
+
+    return response;
   }
 
   Future<dynamic> get(String endpoint, {Map<String, dynamic>? query}) {
@@ -197,21 +240,7 @@ class ApiClient {
       return http.Response.fromStream(streamedResponse);
     }
 
-    var response = await send();
-
-    if (response.statusCode == 401) {
-      try {
-        final errorBody = json.decode(response.body) as Map<String, dynamic>;
-        if (errorBody['error']?['code'] == 'TOKEN_EXPIRED') {
-          if (await _tryRefresh()) {
-            response = await send();
-          }
-        }
-      } catch (_) {
-        // response body wasn't JSON; let _unwrap handle it
-      }
-    }
-
+    final response = await _withRefreshRetry(send);
     return _unwrap(response);
   }
 
@@ -256,22 +285,7 @@ class ApiClient {
       }
     }
 
-    var response = await send();
-
-    // Auto-refresh on expired access token
-    if (response.statusCode == 401) {
-      try {
-        final errorBody = json.decode(response.body) as Map<String, dynamic>;
-        if (errorBody['error']?['code'] == 'TOKEN_EXPIRED') {
-          if (await _tryRefresh()) {
-            response = await send();
-          }
-        }
-      } catch (_) {
-        // response body wasn't JSON; let _unwrap handle it
-      }
-    }
-
+    final response = await _withRefreshRetry(send);
     return _unwrap(response);
   }
 }

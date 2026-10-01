@@ -10,25 +10,12 @@ const {
   listTransactionsSchema,
 } = require('../validators/transaction.schema');
 const { sendSuccess, sendError } = require('../utils/response');
+const { getMonthRange } = require('../utils/dates');
 
 const router = express.Router();
 
 // All transaction routes require authentication
 router.use(authenticate);
-
-/**
- * Helper: compute month range as { start, end } date strings.
- * end is the first day of the next month (exclusive upper bound).
- */
-function getMonthRange(month) {
-  const [year, mon] = month.split('-').map(Number);
-  const start = `${month}-01`;
-  const nextMonth = mon === 12
-    ? `${year + 1}-01`
-    : `${year}-${String(mon + 1).padStart(2, '0')}`;
-  const end = `${nextMonth}-01`;
-  return { start, end };
-}
 
 /**
  * Helper: map sort param to a Drizzle column.
@@ -87,6 +74,8 @@ router.get('/', async (req, res, next) => {
         amount: transactions.amount,
         currency: transactions.currency,
         type: transactions.type,
+        typeConfidence: transactions.typeConfidence,
+        typeSource: transactions.typeSource,
         status: transactions.status,
         merchant: transactions.merchant,
         description: transactions.description,
@@ -211,6 +200,7 @@ router.post('/', validate(createTransactionSchema), async (req, res, next) => {
         amount,
         currency: currency || req.user.currency,
         type,
+        typeSource: 'manual',
         status: 'confirmed',
         merchant: merchant || null,
         description: description || null,
@@ -225,6 +215,8 @@ router.post('/', validate(createTransactionSchema), async (req, res, next) => {
         amount: transactions.amount,
         currency: transactions.currency,
         type: transactions.type,
+        typeConfidence: transactions.typeConfidence,
+        typeSource: transactions.typeSource,
         status: transactions.status,
         merchant: transactions.merchant,
         description: transactions.description,
@@ -259,6 +251,8 @@ router.get('/:id', async (req, res, next) => {
         amount: transactions.amount,
         currency: transactions.currency,
         type: transactions.type,
+        typeConfidence: transactions.typeConfidence,
+        typeSource: transactions.typeSource,
         status: transactions.status,
         merchant: transactions.merchant,
         description: transactions.description,
@@ -304,7 +298,7 @@ router.put('/:id', validate(updateTransactionSchema), async (req, res, next) => 
 
     // Verify ownership
     const [existing] = await db
-      .select({ id: transactions.id, status: transactions.status })
+      .select({ id: transactions.id, type: transactions.type, status: transactions.status })
       .from(transactions)
       .where(and(eq(transactions.id, transactionId), eq(transactions.userId, req.user.id)))
       .limit(1);
@@ -319,6 +313,14 @@ router.put('/:id', validate(updateTransactionSchema), async (req, res, next) => 
       updateData.occurredAt = new Date(req.body.occurredAt);
     }
 
+    // Changing the direction invalidates the AI's conclusion: record the correction
+    // and drop the confidence, which no longer describes the stored type. Only fires
+    // on an actual change, so an unrelated edit keeps the original provenance.
+    if (req.body.type && req.body.type !== existing.type) {
+      updateData.typeSource = 'user_override';
+      updateData.typeConfidence = null;
+    }
+
     const [updated] = await db
       .update(transactions)
       .set(updateData)
@@ -328,6 +330,8 @@ router.put('/:id', validate(updateTransactionSchema), async (req, res, next) => 
         amount: transactions.amount,
         currency: transactions.currency,
         type: transactions.type,
+        typeConfidence: transactions.typeConfidence,
+        typeSource: transactions.typeSource,
         status: transactions.status,
         merchant: transactions.merchant,
         description: transactions.description,
@@ -412,6 +416,8 @@ router.post('/:id/confirm', async (req, res, next) => {
         id: transactions.id,
         amount: transactions.amount,
         type: transactions.type,
+        typeConfidence: transactions.typeConfidence,
+        typeSource: transactions.typeSource,
         status: transactions.status,
         merchant: transactions.merchant,
         transactionDate: transactions.transactionDate,

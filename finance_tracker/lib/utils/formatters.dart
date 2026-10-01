@@ -37,4 +37,19 @@ class Formatters {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}';
   }
+
+  /// Format a [DateTime] as a YYYY-MM-DD string, e.g. "2026-09-10".
+  static String toDateString(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// Shift a YYYY-MM month string by [delta] months,
+  /// e.g. shiftMonth("2026-01", -1) → "2025-12".
+  static String shiftMonth(String month, int delta) {
+    final parts = month.split('-');
+    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]));
+    final shifted = DateTime(date.year, date.month + delta);
+    return '${shifted.year}-${shifted.month.toString().padLeft(2, '0')}';
+  }
 }

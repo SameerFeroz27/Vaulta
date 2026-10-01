@@ -15,6 +15,8 @@ class Receipt {
   final String? amount;
   final String? merchant;
   final String? transactionType;
+  /// The words or feature the AI relied on to decide income vs expense, if it did.
+  final String? directionEvidence;
 
   Receipt({
     required this.id,
@@ -30,6 +32,7 @@ class Receipt {
     this.amount,
     this.merchant,
     this.transactionType,
+    this.directionEvidence,
   });
 
   factory Receipt.fromJson(Map<String, dynamic> json) {
@@ -47,6 +50,7 @@ class Receipt {
       amount: json['amount']?.toString(),
       merchant: json['merchant'] as String?,
       transactionType: json['transactionType'] as String?,
+      directionEvidence: json['directionEvidence'] as String?,
     );
   }
 
@@ -93,6 +97,8 @@ class ReceiptTransaction {
   final int id;
   final String amount;
   final String type;
+  final double? typeConfidence;
+  final String? typeSource;
   final String? merchant;
   final String status;
   final String? transactionDate;
@@ -101,6 +107,8 @@ class ReceiptTransaction {
     required this.id,
     required this.amount,
     required this.type,
+    this.typeConfidence,
+    this.typeSource,
     this.merchant,
     required this.status,
     this.transactionDate,
@@ -111,6 +119,10 @@ class ReceiptTransaction {
       id: json['id'] as int,
       amount: json['amount'] as String,
       type: json['type'] as String? ?? 'expense',
+      typeConfidence: json['typeConfidence'] == null
+          ? null
+          : double.tryParse(json['typeConfidence'].toString()),
+      typeSource: json['typeSource'] as String?,
       merchant: json['merchant'] as String?,
       status: json['status'] as String? ?? 'needs_review',
       transactionDate: json['transactionDate'] as String?,

@@ -4,6 +4,7 @@ const {
   parseAndValidateAiOutput,
 } = require('../validators/ai-output.schema');
 const { parseBankMessage, buildAiPrompt } = require('../services/bank-message');
+const bankSmsFixtures = require('./fixtures/bank-sms.json');
 
 // ─── stripMarkdownFences ─────────────────────────────────────────
 
@@ -125,7 +126,30 @@ describe('parseAndValidateAiOutput', () => {
     const result = parseAndValidateAiOutput(input);
     expect(result.success).toBe(true);
     expect(result.data.merchant).toBe('Unknown');
-    expect(result.data.type).toBe('expense');
+  });
+
+  it('should leave type undefined when the AI omits it', () => {
+    // This used to default to 'expense', which silently misfiled an income receipt the
+    // AI could not read. It must stay absent so the worker can route it to review.
+    const input = '{"amount": 100, "merchant": "Store"}';
+    const result = parseAndValidateAiOutput(input);
+    expect(result.success).toBe(true);
+    expect(result.data.type).toBeUndefined();
+  });
+
+  it('should accept typeConfidence and directionEvidence', () => {
+    const input = JSON.stringify({
+      amount: 100,
+      type: 'income',
+      typeConfidence: 0.82,
+      directionEvidence: "header says 'REFUND RECEIPT'",
+    });
+    const result = parseAndValidateAiOutput(input);
+
+    expect(result.success).toBe(true);
+    expect(result.data.type).toBe('income');
+    expect(result.data.typeConfidence).toBe(0.82);
+    expect(result.data.directionEvidence).toBe("header says 'REFUND RECEIPT'");
   });
 });
 
@@ -173,6 +197,26 @@ describe('parseBankMessage', () => {
   });
 });
 
+// ─── parseBankMessage against real bank SMS formats ───────────────
+
+describe('parseBankMessage — bank SMS fixtures', () => {
+  for (const sample of bankSmsFixtures.cases) {
+    it(`${sample.bank}: ${sample.name}`, () => {
+      const hints = parseBankMessage(sample.message);
+      // undefined means "no usable signal"; normalise so the fixture can say null.
+      expect(hints.type ?? null).toBe(sample.expectedType);
+    });
+  }
+
+  it('always extracts a positive amount, even from a signed value', () => {
+    const signed = bankSmsFixtures.cases.find((c) => c.name.startsWith('Signed negative'));
+    const hints = parseBankMessage(signed.message);
+
+    expect(hints.amount).toBe(1500);
+    expect(hints.amount).toBeGreaterThan(0);
+  });
+});
+
 // ─── buildAiPrompt ────────────────────────────────────────────────
 
 describe('buildAiPrompt', () => {
@@ -190,5 +234,24 @@ describe('buildAiPrompt', () => {
     const prompt = buildAiPrompt('Some message', { confidence: 0 });
     expect(prompt).toContain('bank message');
     expect(prompt).toContain('JSON');
+  });
+
+  it('should not reveal the keyword-guessed type to the AI', () => {
+    // The AI's answer is cross-checked against these hints in resolveDirection, so
+    // leaking the guess would let the model simply echo it, making a disagreement
+    // impossible to detect.
+    const msg = 'PKR 1,500 spent at KFC';
+    const hints = parseBankMessage(msg);
+    expect(hints.type).toBe('expense');
+
+    const prompt = buildAiPrompt(msg, hints);
+    expect(prompt).not.toContain('Transaction type');
+    expect(prompt).not.toContain('Pre-extracted type');
+  });
+
+  it('should ask the AI for direction confidence and evidence', () => {
+    const prompt = buildAiPrompt('PKR 1,500 spent at KFC', {});
+    expect(prompt).toContain('typeConfidence');
+    expect(prompt).toContain('directionEvidence');
   });
 });

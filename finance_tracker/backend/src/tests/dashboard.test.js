@@ -9,6 +9,7 @@ const {
   db,
 } = require('./setup');
 const { transactions } = require('../db/schema');
+const { eq, and } = require('drizzle-orm');
 
 describe('Dashboard API', () => {
   const testEmail = `test-dash-${Date.now()}@test.com`;
@@ -176,5 +177,124 @@ describe('Dashboard API', () => {
       expect(res.body.data.overall.budgetAmount).toBeNull();
       expect(res.body.data.categories).toBeDefined();
     });
+  });
+});
+
+// ─── needs_review rows are held out of every reported total ───────
+//
+// A transaction whose direction the AI could not settle keeps the AI's best guess but
+// must not skew reported income/expense until the user confirms or flips it. These use
+// a separate user so the exact totals asserted above stay untouched.
+
+describe('Dashboard API — needs_review exclusion', () => {
+  const testEmail = `test-dash-review-${Date.now()}@test.com`;
+  let testUser, tokens, sourceId;
+  const today = new Date().toISOString().slice(0, 10);
+  const currentMonth = today.slice(0, 7);
+
+  beforeAll(async () => {
+    testUser = await createTestUser(testEmail);
+    tokens = await getAuthTokens(testUser);
+    sourceId = await getFirstSourceId();
+
+    await db.insert(transactions).values([
+      // Confirmed control — this one must be counted.
+      {
+        userId: testUser.id,
+        sourceId,
+        amount: '200.00',
+        currency: 'PKR',
+        type: 'expense',
+        status: 'confirmed',
+        merchant: 'Confirmed Merchant',
+        occurredAt: new Date(),
+        transactionDate: today,
+      },
+      // Direction unresolved — these must not be counted.
+      {
+        userId: testUser.id,
+        sourceId,
+        amount: '999.00',
+        currency: 'PKR',
+        type: 'expense',
+        status: 'needs_review',
+        merchant: 'Unresolved Expense',
+        occurredAt: new Date(),
+        transactionDate: today,
+      },
+      {
+        userId: testUser.id,
+        sourceId,
+        amount: '777.00',
+        currency: 'PKR',
+        type: 'income',
+        status: 'needs_review',
+        merchant: 'Unresolved Income',
+        occurredAt: new Date(),
+        transactionDate: today,
+      },
+    ]);
+  });
+
+  afterAll(async () => {
+    if (testUser) await cleanupUser(testUser.id);
+  });
+
+  it('excludes needs_review amounts from the summary', async () => {
+    const res = await request(app)
+      .get(`/api/dashboard/summary?month=${currentMonth}`)
+      .set('Authorization', `Bearer ${tokens.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalExpense).toBe(200);
+    expect(res.body.data.totalIncome).toBe(0);
+    expect(res.body.data.transactionCount).toBe(1);
+  });
+
+  it('excludes needs_review amounts from the expense trend', async () => {
+    const res = await request(app)
+      .get('/api/dashboard/expense-trend?months=6')
+      .set('Authorization', `Bearer ${tokens.accessToken}`);
+
+    expect(res.status).toBe(200);
+    const currentMonthData = res.body.data.data.find((d) => d.month === currentMonth);
+    expect(currentMonthData.totalExpense).toBe(200);
+    expect(currentMonthData.totalIncome).toBe(0);
+  });
+
+  it('excludes needs_review amounts from budget spend', async () => {
+    const res = await request(app)
+      .get(`/api/dashboard/budget-status?month=${currentMonth}`)
+      .set('Authorization', `Bearer ${tokens.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.overall.spent).toBe(200);
+  });
+
+  it('counts the amount once the direction is confirmed', async () => {
+    const [pending] = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, testUser.id),
+          eq(transactions.status, 'needs_review'),
+          eq(transactions.type, 'expense')
+        )
+      )
+      .limit(1);
+
+    const confirmRes = await request(app)
+      .post(`/api/transactions/${pending.id}/confirm`)
+      .set('Authorization', `Bearer ${tokens.accessToken}`);
+    expect(confirmRes.status).toBe(200);
+
+    const res = await request(app)
+      .get(`/api/dashboard/summary?month=${currentMonth}`)
+      .set('Authorization', `Bearer ${tokens.accessToken}`);
+
+    // 200 confirmed + the 999 that was just resolved; the 777 income stays out.
+    expect(res.body.data.totalExpense).toBe(1199);
+    expect(res.body.data.totalIncome).toBe(0);
   });
 });

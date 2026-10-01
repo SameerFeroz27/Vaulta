@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/budget.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/budget_provider.dart';
+import '../../utils/errors.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/common/confirm_dialog.dart';
 import '../../widgets/common/empty_state.dart';
@@ -53,7 +54,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+          SnackBar(content: Text(errorMessage(e))),
         );
       }
     }

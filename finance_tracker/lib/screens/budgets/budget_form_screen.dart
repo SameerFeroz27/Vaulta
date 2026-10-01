@@ -6,7 +6,9 @@ import '../../models/budget.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/budget_provider.dart';
 import '../../providers/category_provider.dart';
+import '../../utils/errors.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/common/button_spinner.dart';
 import '../../widgets/common/confirm_dialog.dart';
 
 /// Form for creating or editing a budget.
@@ -45,13 +47,6 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
   void dispose() {
     _amountController.dispose();
     super.dispose();
-  }
-
-  String _shiftMonth(String month, int delta) {
-    final parts = month.split('-');
-    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]));
-    final shifted = DateTime(date.year, date.month + delta);
-    return '${shifted.year}-${shifted.month.toString().padLeft(2, '0')}';
   }
 
   Future<void> _save() async {
@@ -108,7 +103,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+          SnackBar(content: Text(errorMessage(e))),
         );
       }
     } finally {
@@ -121,7 +116,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
     if (str.contains('CONFLICT')) {
       return 'A budget for this category and month already exists.';
     }
-    return str.replaceFirst('Exception: ', '');
+    return errorMessage(error);
   }
 
   @override
@@ -176,7 +171,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => setState(
-                    () => _selectedMonth = _shiftMonth(_selectedMonth, -1),
+                    () => _selectedMonth = Formatters.shiftMonth(_selectedMonth, -1),
                   ),
                 ),
                 Text(
@@ -189,7 +184,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => setState(
-                    () => _selectedMonth = _shiftMonth(_selectedMonth, 1),
+                    () => _selectedMonth = Formatters.shiftMonth(_selectedMonth, 1),
                   ),
                 ),
               ],
@@ -239,14 +234,7 @@ class _BudgetFormScreenState extends State<BudgetFormScreen> {
             FilledButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
+                  ? const ButtonSpinner()
                   : Text(_isEditing ? 'Update' : 'Create'),
             ),
 

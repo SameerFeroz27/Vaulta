@@ -4,6 +4,7 @@ const { transactions, categories, budgets } = require('../db/schema');
 const { eq, and, sql } = require('drizzle-orm');
 const authenticate = require('../middleware/auth');
 const { sendSuccess, sendError } = require('../utils/response');
+const { getMonthRange } = require('../utils/dates');
 
 const router = express.Router();
 
@@ -12,19 +13,22 @@ router.use(authenticate);
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
+/**
+ * Rows left out of every reported total.
+ *
+ * - `archived` is deleted by the user.
+ * - `needs_review` means the AI could not settle the direction with confidence, so
+ *   counting it would let an unconfirmed guess skew income and expense. It reappears
+ *   the moment the user confirms or flips it.
+ * - Loan rows (`kind` set) are money movement, not income or expense: lending converts
+ *   cash into a receivable and borrowing creates a liability. They are real
+ *   transactions and stay in the ledger, but they must not inflate these figures.
+ */
+const EXCLUDED_FROM_TOTALS = sql`t.status NOT IN ('archived', 'needs_review') AND t.kind IS NULL`;
+
 function getCurrentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthRange(month) {
-  const [year, mon] = month.split('-').map(Number);
-  const start = `${month}-01`;
-  const nextMonth = mon === 12
-    ? `${year + 1}-01`
-    : `${year}-${String(mon + 1).padStart(2, '0')}`;
-  const end = `${nextMonth}-01`;
-  return { start, end };
 }
 
 /**
@@ -66,7 +70,7 @@ router.get('/summary', async (req, res, next) => {
       WHERE t.user_id = ${userId}
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
     `)).rows;
 
     // Top 5 merchants by expense
@@ -78,7 +82,7 @@ router.get('/summary', async (req, res, next) => {
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
         AND t.merchant IS NOT NULL
       GROUP BY t.merchant
       ORDER BY total_spent DESC
@@ -133,7 +137,7 @@ router.get('/expense-by-category', async (req, res, next) => {
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
       GROUP BY c.id, c.name, c.icon, c.color
       ORDER BY total DESC
     `)).rows.map((r) => ({
@@ -187,7 +191,7 @@ router.get('/expense-by-source', async (req, res, next) => {
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
       LEFT JOIN users u ON u.id = ${userId}
       GROUP BY s.id, s.name
       ORDER BY total DESC
@@ -236,7 +240,7 @@ router.get('/expense-trend', async (req, res, next) => {
       JOIN users u ON u.id = t.user_id
       WHERE t.user_id = ${userId}
         AND t.transaction_date >= ${startDate}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
       GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
       ORDER BY month ASC
     `)).rows;
@@ -301,7 +305,7 @@ router.get('/budget-status', async (req, res, next) => {
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
       GROUP BY t.category_id
     `)).rows;
 
@@ -314,7 +318,7 @@ router.get('/budget-status', async (req, res, next) => {
         AND t.type = 'expense'
         AND t.transaction_date >= ${start}
         AND t.transaction_date < ${end}
-        AND t.status != 'archived'
+        AND ${EXCLUDED_FROM_TOTALS}
     `)).rows;
 
     const overallSpent = parseFloat(overallRow.spent);

@@ -15,6 +15,36 @@ const router = express.Router();
 router.use(authenticate);
 
 /**
+ * Look up a receipt this user has already submitted with the same content hash
+ * that is processed or processing.
+ * A needs_review receipt that already produced a transaction still counts as
+ * processed; one whose parsing failed has no transaction and may be retried.
+ * @param {number} userId
+ * @param {string} fileHash - SHA-256 hash of the file or message text
+ * @returns {Promise<object|undefined>} The existing receipt row, or undefined
+ */
+async function findProcessedReceipt(userId, fileHash) {
+  const [existing] = await db
+    .select({
+      id: receipts.id,
+      status: receipts.status,
+      transactionId: receipts.transactionId,
+    })
+    .from(receipts)
+    .where(
+      and(
+        eq(receipts.userId, userId),
+        eq(receipts.fileHash, fileHash),
+        sql`(${receipts.status} IN ('success', 'processing', 'queued')
+             OR (${receipts.status} = 'needs_review' AND ${receipts.transactionId} IS NOT NULL))`
+      )
+    )
+    .limit(1);
+
+  return existing;
+}
+
+/**
  * POST /api/receipts/scan
  * Upload a receipt image (cash or virtual/online), create a queued receipt job.
  * Multipart form data: field "receipt" (image file) + optional "inputType" (image|virtual_receipt)
@@ -23,30 +53,18 @@ router.post('/scan', uploadReceipt, async (req, res, next) => {
   try {
     const inputType = req.body.inputType === 'virtual_receipt' ? 'virtual_receipt' : 'image';
 
-    // Optional user-selected transaction type (income/expense) for image receipts
+    // Optional user override. Omitted means "let the AI decide the direction" —
+    // it must stay null so the worker can tell an override from a default.
+    const requestedType = req.body.transactionType;
     const transactionType =
-      req.body.transactionType === 'income' ? 'income' : 'expense';
+      requestedType === 'income' || requestedType === 'expense' ? requestedType : null;
 
     // Compute SHA-256 file hash for deduplication
     const fileBuffer = fs.readFileSync(req.file.path);
     const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
     // Check for duplicate receipt (same user + same file hash, already processed or processing)
-    const [existing] = await db
-      .select({
-        id: receipts.id,
-        status: receipts.status,
-        transactionId: receipts.transactionId,
-      })
-      .from(receipts)
-      .where(
-        and(
-          eq(receipts.userId, req.user.id),
-          eq(receipts.fileHash, fileHash),
-          sql`${receipts.status} IN ('success', 'processing', 'queued')`
-        )
-      )
-      .limit(1);
+    const existing = await findProcessedReceipt(req.user.id, fileHash);
 
     if (existing) {
       // Delete the newly uploaded file since it's a duplicate
@@ -120,21 +138,7 @@ router.post('/bank-message', async (req, res, next) => {
     const textHash = crypto.createHash('sha256').update(message.trim()).digest('hex');
 
     // Check for duplicate
-    const [existing] = await db
-      .select({
-        id: receipts.id,
-        status: receipts.status,
-        transactionId: receipts.transactionId,
-      })
-      .from(receipts)
-      .where(
-        and(
-          eq(receipts.userId, req.user.id),
-          eq(receipts.fileHash, textHash),
-          sql`${receipts.status} IN ('success', 'processing', 'queued')`
-        )
-      )
-      .limit(1);
+    const existing = await findProcessedReceipt(req.user.id, textHash);
 
     if (existing) {
       return sendSuccess(res, {
@@ -195,6 +199,9 @@ router.get('/:id', async (req, res, next) => {
         attempts: receipts.attempts,
         createdAt: receipts.createdAt,
         processedAt: receipts.processedAt,
+        // Surfaced so the UI can explain why the AI filed a direction, instead of
+        // presenting an auto-filing decision as a black box.
+        directionEvidence: sql`${receipts.aiResponse}->>'directionEvidence'`,
       })
       .from(receipts)
       .where(and(eq(receipts.id, receiptId), eq(receipts.userId, req.user.id)))
@@ -212,6 +219,8 @@ router.get('/:id', async (req, res, next) => {
           id: transactions.id,
           amount: transactions.amount,
           type: transactions.type,
+          typeConfidence: transactions.typeConfidence,
+          typeSource: transactions.typeSource,
           merchant: transactions.merchant,
           status: transactions.status,
           transactionDate: transactions.transactionDate,

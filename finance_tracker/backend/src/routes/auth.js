@@ -15,6 +15,24 @@ const { sendOtpEmail } = require('../utils/email');
 const router = express.Router();
 
 /**
+ * Hash a refresh token and store it for the user with a 7-day expiry.
+ * @param {number} userId
+ * @param {string} refreshToken
+ * @param {object} req - current request (for IP address and user agent)
+ */
+async function issueAndStoreRefreshToken(userId, refreshToken, req) {
+  const tokenHash = hashToken(refreshToken);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  await db.insert(refreshTokens).values({
+    userId,
+    tokenHash,
+    expiresAt,
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+}
+
+/**
  * POST /api/auth/register
  * Register a new user
  */
@@ -50,17 +68,7 @@ router.post('/register', authLimiter, validate(registerSchema), async (req, res,
 
     // Generate tokens
     const tokens = generateTokens(newUser);
-    const tokenHash = hashToken(tokens.refreshToken);
-
-    // Save refresh token
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-    await db.insert(refreshTokens).values({
-      userId: newUser.id,
-      tokenHash,
-      expiresAt,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    await issueAndStoreRefreshToken(newUser.id, tokens.refreshToken, req);
 
     return sendSuccess(
       res,
@@ -95,17 +103,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res, next)
 
     // Generate tokens
     const tokens = generateTokens(user);
-    const tokenHash = hashToken(tokens.refreshToken);
-
-    // Store refresh token
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await db.insert(refreshTokens).values({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    await issueAndStoreRefreshToken(user.id, tokens.refreshToken, req);
 
     const userProfile = {
       id: user.id,
@@ -176,16 +174,7 @@ router.post('/refresh', authLimiter, validate(refreshSchema), async (req, res, n
 
     // Generate new tokens
     const newTokens = generateTokens(user);
-    const newTokenHash = hashToken(newTokens.refreshToken);
-
-    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await db.insert(refreshTokens).values({
-      userId: user.id,
-      tokenHash: newTokenHash,
-      expiresAt: newExpiresAt,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    await issueAndStoreRefreshToken(user.id, newTokens.refreshToken, req);
 
     return sendSuccess(res, {
       tokens: newTokens,

@@ -13,6 +13,7 @@ import '../../providers/receipt_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../services/api_client.dart';
 import '../../services/receipt_service.dart';
+import '../../utils/errors.dart';
 import '../../utils/formatters.dart';
 
 enum _Mode { image, online, bankMessage }
@@ -35,7 +36,8 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
 
   _Mode _mode = _Mode.image;
   _Phase _phase = _Phase.idle;
-  String _transactionType = 'expense';
+  // 'auto' lets the AI decide the direction; 'expense'/'income' override it.
+  String _typeChoice = 'auto';
   bool _showInstructions = true;
 
   XFile? _selectedImage;
@@ -46,6 +48,12 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
   ReceiptDetail? _detail;
   String? _errorMessage;
   Timer? _pollTimer;
+  bool _resolving = false;
+
+  /// True when the parse succeeded but the direction was left for the user to settle.
+  /// A parse *failure* also yields a needs_review receipt, but has no transaction.
+  bool get _isDirectionPending =>
+      _detail?.receipt.status == 'needs_review' && _detail?.transaction != null;
 
   @override
   void initState() {
@@ -119,7 +127,8 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
         filename: _selectedImage!.name,
         mimeType: _selectedImage!.mimeType ?? _inferMimeType(_selectedImage!.name),
         inputType: _mode == _Mode.online ? 'virtual_receipt' : 'image',
-        transactionType: _transactionType,
+        // Null means "no override — let the AI decide".
+        transactionType: _typeChoice == 'auto' ? null : _typeChoice,
       );
       if (!mounted) return;
       _handleScanResult(result);
@@ -127,7 +136,7 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       if (mounted) {
         setState(() {
           _phase = _Phase.done;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = errorMessage(e);
         });
       }
     }
@@ -150,7 +159,7 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       if (mounted) {
         setState(() {
           _phase = _Phase.done;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = errorMessage(e);
         });
       }
     }
@@ -212,7 +221,7 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
         timer.cancel();
         setState(() {
           _phase = _Phase.done;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = errorMessage(e);
         });
       }
     });
@@ -235,7 +244,7 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       if (mounted) {
         setState(() {
           _phase = _Phase.done;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = errorMessage(e);
         });
       }
     }
@@ -251,8 +260,53 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
       _receiptId = null;
       _detail = null;
       _errorMessage = null;
-      _transactionType = 'expense';
+      _typeChoice = 'auto';
+      _resolving = false;
     });
+  }
+
+  /// Resolve the direction without leaving this screen. Confirming the AI's guess and
+  /// flipping it are both one tap, so a held-back receipt never becomes a detour into
+  /// the Transactions tab.
+  Future<void> _resolveDirection(String? newType) async {
+    final txn = _detail?.transaction;
+    final receiptId = _receiptId;
+    if (txn == null || receiptId == null || _resolving) return;
+
+    setState(() => _resolving = true);
+
+    final provider = context.read<TransactionProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final ok = newType == null
+        ? await provider.confirmTransaction(txn.id)
+        : await provider.updateTransaction(txn.id, {
+            'type': newType,
+            'status': 'confirmed',
+          });
+
+    if (!mounted) return;
+
+    if (!ok) {
+      setState(() => _resolving = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not update the transaction.')),
+      );
+      return;
+    }
+
+    // Re-read the receipt so the header reflects the resolved state.
+    try {
+      final detail = await _receiptService.get(receiptId);
+      if (!mounted) return;
+      setState(() {
+        _detail = detail;
+        _resolving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _resolving = false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -296,12 +350,29 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
           const SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
+              ButtonSegment(
+                value: 'auto',
+                label: Text('Auto'),
+                icon: Icon(Icons.auto_awesome, size: 18),
+              ),
               ButtonSegment(value: 'expense', label: Text('Expense')),
               ButtonSegment(value: 'income', label: Text('Income')),
             ],
-            selected: {_transactionType},
+            selected: {_typeChoice},
             onSelectionChanged: (set) =>
-                setState(() => _transactionType = set.first),
+                setState(() => _typeChoice = set.first),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _typeChoice == 'auto'
+                ? 'The AI will work out whether this is income or expense. '
+                    'Anything it is unsure about is held for a one-tap review.'
+                : 'Overriding the AI — this will be filed as '
+                    '${_typeChoice == 'income' ? 'income' : 'expense'}.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
         const SizedBox(height: 24),
@@ -504,13 +575,20 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
           _buildTransactionCard(transaction),
           const SizedBox(height: 16),
         ],
+        if (transaction != null && _isDirectionPending) ...[
+          _buildReviewActions(transaction),
+          const SizedBox(height: 16),
+        ],
         if (_errorMessage != null) ...[
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
                 _errorMessage!,
-                style: TextStyle(color: Colors.red[700]),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red[700],
+                ),
               ),
             ),
           ),
@@ -530,6 +608,56 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
     );
   }
 
+  Widget _buildReviewActions(ReceiptTransaction txn) {
+    final isExpense = txn.type == 'expense';
+
+    return Card(
+      color: Colors.orange.withValues(alpha: 0.08),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title and buttons only. The direction and its consequences are already
+            // stated by the result header above, so a body sentence here would just
+            // repeat it.
+            const Text(
+              'Confirm the direction',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _resolving ? null : () => _resolveDirection(null),
+                    child: _resolving
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Confirm'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _resolving
+                        ? null
+                        : () =>
+                              _resolveDirection(isExpense ? 'income' : 'expense'),
+                    child: Text('Change to ${isExpense ? 'Income' : 'Expense'}'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResultHeader(String status) {
     return switch (status) {
       'success' => _resultIcon(
@@ -542,12 +670,20 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
         icon: Icons.pending_actions_outlined,
         color: const Color(0xFFFF9800),
         title: 'Needs Review',
-        subtitle: 'Review and confirm the transaction in the Transactions tab.',
+        bold: true,
+        // needs_review covers two cases: parsing failed outright (no transaction),
+        // or the parse succeeded but the direction was uncertain (transaction exists).
+        // The second case keeps only the fact the user cannot see elsewhere: this is
+        // held back from their totals.
+        subtitle: _detail?.transaction == null
+            ? 'The receipt could not be read. Try scanning it again.'
+            : 'Not in your totals until you confirm the direction below.',
       ),
       'failed' => _resultIcon(
         icon: Icons.error_outline,
         color: const Color(0xFFE53935),
         title: 'Scan Failed',
+        bold: true,
         subtitle: 'The receipt could not be processed.',
       ),
       'duplicate' => _resultIcon(
@@ -570,6 +706,9 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
     required Color color,
     required String title,
     required String subtitle,
+    // Warning and error states are emphasised like the inline notices; the
+    // success and duplicate states stay in the quieter body weight.
+    bool bold = false,
   }) {
     return Center(
       child: Column(
@@ -582,7 +721,10 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : null,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -591,6 +733,9 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
 
   Widget _buildTransactionCard(ReceiptTransaction txn) {
     final isExpense = txn.type == 'expense';
+    final confidence = txn.typeConfidence;
+    final evidence = _detail?.receipt.directionEvidence;
+    final wasAutoDecided = txn.typeSource == 'ai_auto';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -618,6 +763,19 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
             if (txn.transactionDate != null)
               _detailRow('Date', Formatters.date(txn.transactionDate!)),
             _detailRow('Type', isExpense ? 'Expense' : 'Income'),
+            if (wasAutoDecided && confidence != null)
+              _detailRow('AI confidence', '${(confidence * 100).round()}%'),
+            if (wasAutoDecided && evidence != null && evidence.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Decided from: $evidence',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),

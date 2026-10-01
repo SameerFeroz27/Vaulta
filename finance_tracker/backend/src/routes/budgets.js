@@ -6,6 +6,7 @@ const authenticate = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const { createBudgetSchema, updateBudgetSchema, listBudgetsSchema } = require('../validators/budget.schema');
 const { sendSuccess, sendError } = require('../utils/response');
+const { getMonthRange } = require('../utils/dates');
 
 const router = express.Router();
 
@@ -13,16 +14,6 @@ const router = express.Router();
 router.use(authenticate);
 
 // ─── Helpers ─────────────────────────────────────────────────────
-
-function getMonthRange(month) {
-  const [year, mon] = month.split('-').map(Number);
-  const start = `${month}-01`;
-  const nextMonth = mon === 12
-    ? `${year + 1}-01`
-    : `${year}-${String(mon + 1).padStart(2, '0')}`;
-  const end = `${nextMonth}-01`;
-  return { start, end };
-}
 
 /**
  * Fetch spending per category for a given user + month.

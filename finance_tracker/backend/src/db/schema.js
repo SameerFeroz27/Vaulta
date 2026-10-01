@@ -110,16 +110,45 @@ const receipts = pgTable('receipts', {
   index('idx_receipts_file_hash').on(table.userId, table.fileHash),
 ]);
 
-// 6. Transactions Table
+// 6. Loans Table (money lent to, or borrowed from, friends and relatives)
+// Amounts are always in the user's base currency (PKR). There is no status column:
+// open/settled is derived from the repayment total, so it can never contradict it.
+const loans = pgTable('loans', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  counterparty: text('counterparty').notNull(),
+  direction: text('direction').notNull(), // lent (they owe me), borrowed (I owe them)
+  principal: numeric('principal', { precision: 14, scale: 2 }).notNull(),
+  issueDate: date('issue_date').notNull(),
+  dueDate: date('due_date'),
+  notes: text('notes'),
+  // Removing a loan hides it rather than deleting it, so its repayments stay
+  // available to the per-person summary and past payments remain visible.
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('idx_loans_user_direction').on(table.userId, table.direction),
+  index('idx_loans_user_due_date').on(table.userId, table.dueDate),
+  index('idx_loans_user_deleted_at').on(table.userId, table.deletedAt),
+]);
+
+// 7. Transactions Table
 const transactions = pgTable('transactions', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   sourceId: integer('source_id').notNull().references(() => sources.id, { onDelete: 'restrict' }),
   categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
   receiptId: integer('receipt_id').references(() => receipts.id, { onDelete: 'set null' }),
+  // Loan linkage, set only on rows the loans feature created. Lets loan money movement
+  // stay out of income/expense reports while remaining a real, visible transaction.
+  kind: text('kind'), // null for ordinary rows: loan_disbursement, loan_repayment
+  loanId: integer('loan_id').references(() => loans.id, { onDelete: 'set null' }),
   amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
   currency: char('currency', { length: 3 }).notNull().default('PKR'),
   type: text('type').notNull().default('expense'), // expense, income
+  typeConfidence: numeric('type_confidence', { precision: 3, scale: 2 }), // AI's confidence in the direction; null when user-chosen
+  typeSource: text('type_source'), // ai_auto, user_override, manual
   status: text('status').notNull().default('confirmed'), // needs_review, confirmed, archived
   merchant: text('merchant'),
   description: text('description'),
@@ -139,9 +168,28 @@ const transactions = pgTable('transactions', {
   index('idx_transactions_user_category').on(table.userId, table.categoryId),
   index('idx_transactions_user_type').on(table.userId, table.type),
   index('idx_transactions_idempotency').on(table.userId, table.idempotencyKey),
+  index('idx_transactions_user_loan').on(table.userId, table.loanId),
 ]);
 
-// 7. Budgets Table (Monthly overall or category-specific budgets)
+// 8. Loan Payments Table (repayments against a loan, optionally linked to a transaction)
+const loanPayments = pgTable('loan_payments', {
+  id: serial('id').primaryKey(),
+  loanId: integer('loan_id').notNull().references(() => loans.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  paymentDate: date('payment_date').notNull(),
+  // Cleared automatically if the linked transaction is removed, which is what happens
+  // when a loan is hidden: the repayment history stays, the ledger movement goes.
+  transactionId: integer('transaction_id').references(() => transactions.id, { onDelete: 'set null' }),
+  idempotencyKey: text('idempotency_key'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('idx_loan_payments_loan_id').on(table.loanId),
+  index('idx_loan_payments_user_id').on(table.userId),
+]);
+
+// 9. Budgets Table (Monthly overall or category-specific budgets)
 const budgets = pgTable('budgets', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -165,6 +213,7 @@ const usersRelations = relations(users, ({ many }) => ({
   receipts: many(receipts),
   categories: many(categories),
   budgets: many(budgets),
+  loans: many(loans),
 }));
 
 const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
@@ -191,6 +240,19 @@ const transactionsRelations = relations(transactions, ({ one }) => ({
   source: one(sources, { fields: [transactions.sourceId], references: [sources.id] }),
   category: one(categories, { fields: [transactions.categoryId], references: [categories.id] }),
   receipt: one(receipts, { fields: [transactions.receiptId], references: [receipts.id] }),
+  loan: one(loans, { fields: [transactions.loanId], references: [loans.id] }),
+}));
+
+const loansRelations = relations(loans, ({ one, many }) => ({
+  user: one(users, { fields: [loans.userId], references: [users.id] }),
+  payments: many(loanPayments),
+  transactions: many(transactions),
+}));
+
+const loanPaymentsRelations = relations(loanPayments, ({ one }) => ({
+  loan: one(loans, { fields: [loanPayments.loanId], references: [loans.id] }),
+  user: one(users, { fields: [loanPayments.userId], references: [users.id] }),
+  transaction: one(transactions, { fields: [loanPayments.transactionId], references: [transactions.id] }),
 }));
 
 const budgetsRelations = relations(budgets, ({ one }) => ({
@@ -205,7 +267,9 @@ module.exports = {
   sources,
   categories,
   receipts,
+  loans,
   transactions,
+  loanPayments,
   budgets,
   usersRelations,
   passwordResetTokensRelations,
@@ -213,5 +277,7 @@ module.exports = {
   categoriesRelations,
   receiptsRelations,
   transactionsRelations,
+  loansRelations,
+  loanPaymentsRelations,
   budgetsRelations,
 };

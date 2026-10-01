@@ -56,14 +56,24 @@ class TransactionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      t.merchant ?? t.categoryName ?? 'Transaction',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            t.merchant ?? t.categoryName ?? 'Transaction',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (t.needsReview) ...[
+                          const SizedBox(width: 6),
+                          const _ReviewBadge(),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -88,6 +98,31 @@ class TransactionCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Marks a transaction whose direction the AI could not settle, so it is excluded
+/// from dashboard totals until the user confirms or changes it.
+class _ReviewBadge extends StatelessWidget {
+  const _ReviewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        'Review',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: Colors.orange,
         ),
       ),
     );

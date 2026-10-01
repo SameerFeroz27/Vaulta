@@ -4,12 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const { db, pool } = require('./config/db');
 const { receipts, transactions, sources, users } = require('./db/schema');
-const { eq, and, inArray, sql } = require('drizzle-orm');
+const { eq, inArray, sql } = require('drizzle-orm');
 
 const { parseReceiptWithVision } = require('./services/ai');
-const { parseTextWithGroq, RECEIPT_SYSTEM_PROMPT } = require('./services/ai');
+const { parseTextWithGroq, DEFAULT_TEXT_MODEL, DEFAULT_VISION_MODEL } = require('./services/ai');
 const { parseReceiptWithOcrFallback } = require('./services/ocr');
-const { parseBankMessage, buildAiPrompt } = require('./services/bank-message');
+const { parseBankMessage, buildAiPrompt, BANK_MESSAGE_SYSTEM_PROMPT } = require('./services/bank-message');
+const { resolveDirection } = require('./services/direction');
 const { parseAndValidateAiOutput } = require('./validators/ai-output.schema');
 const { findDuplicateByAmountAndDate } = require('./services/duplicate');
 
@@ -119,7 +120,9 @@ async function processReceipt(receiptId) {
     // Step 1: Get raw AI response based on input type
     let rawAiResponse;
     let ocrProvider = 'none';
-    let aiModel = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-120b';
+    let aiModel = process.env.GROQ_TEXT_MODEL || DEFAULT_TEXT_MODEL;
+    // Regex hints from bank SMS, kept in scope for direction cross-checking below.
+    let bankHints = null;
 
     if (receipt.inputType === 'image' || receipt.inputType === 'virtual_receipt') {
       // Image receipt — try Groq Vision, fall back to Tesseract + Groq Text
@@ -134,7 +137,7 @@ async function processReceipt(receiptId) {
       try {
         rawAiResponse = await parseReceiptWithVision(fullPath, receipt.mimeType || 'image/jpeg');
         ocrProvider = 'groq_vision';
-        aiModel = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
+        aiModel = process.env.GROQ_VISION_MODEL || DEFAULT_VISION_MODEL;
         console.log(`[Worker] Receipt ${receiptId}: Groq Vision succeeded`);
       } catch (visionErr) {
         console.warn(`[Worker] Receipt ${receiptId}: Groq Vision failed (${visionErr.message}), trying Tesseract fallback`);
@@ -145,22 +148,10 @@ async function processReceipt(receiptId) {
     } else if (receipt.inputType === 'bank_message') {
       // Bank message — pre-process with regex, then send to Groq Text
       const hints = parseBankMessage(receipt.rawText);
+      bankHints = hints;
       const aiPrompt = buildAiPrompt(receipt.rawText, hints);
 
-      const systemPrompt = `You are a bank transaction parser. Extract the transaction details from the bank message and return ONLY a valid JSON object with these fields:
-- merchant: string (merchant or description)
-- amount: number (transaction amount, positive)
-- total: number (same as amount)
-- date: string (YYYY-MM-DD format if available)
-- type: string ("expense" for debit/spent, "income" for credit/received)
-- cardLast4: string (last 4 digits of card if mentioned)
-- bankReference: string (transaction reference number if available)
-- description: string (additional details)
-- confidence: number (0-1)
-
-If a field is not present, omit it. Always return valid JSON.`;
-
-      rawAiResponse = await parseTextWithGroq(systemPrompt, aiPrompt);
+      rawAiResponse = await parseTextWithGroq(BANK_MESSAGE_SYSTEM_PROMPT, aiPrompt);
       ocrProvider = 'none';
       console.log(`[Worker] Receipt ${receiptId}: Groq Text succeeded (bank message)`);
     } else {
@@ -227,12 +218,31 @@ If a field is not present, omit it. Always return valid JSON.`;
       return;
     }
 
-    // Step 6: Create the transaction (auto-confirmed; user can edit/delete later)
+    // Step 6: Resolve the direction, then create the transaction.
+    // An explicit user choice wins; otherwise the AI decides, and anything short of
+    // confident is held as needs_review rather than silently filed as an expense.
     const sourceId = getSourceId(receipt.inputType);
 
-    // User-selected type takes priority over AI guess
-    const userTransactionType = receipt.rawPayload?.transactionType;
-    const transactionType = userTransactionType || aiData.type || 'expense';
+    const direction = resolveDirection({
+      aiType: aiData.type,
+      aiTypeConfidence: aiData.typeConfidence,
+      aiConfidence: aiData.confidence,
+      hintsType: bankHints?.type,
+      userOverride: receipt.rawPayload?.transactionType ?? null,
+    });
+
+    const transactionStatus = direction.needsReview ? 'needs_review' : 'confirmed';
+    // The receipt mirrors the transaction: needs_review here means "parsed fine, but
+    // the direction needs a human", as opposed to a parse failure which creates no
+    // transaction at all and marks the receipt needs_review earlier in this function.
+    const receiptStatus = direction.needsReview ? 'needs_review' : 'success';
+
+    if (direction.needsReview) {
+      console.log(
+        `[Worker] Receipt ${receiptId}: direction held for review — ` +
+        `${direction.type} (confidence ${direction.confidence}, source ${direction.source})`
+      );
+    }
 
     // Build description from items if available
     let description = aiData.description;
@@ -247,8 +257,10 @@ If a field is not present, omit it. Always return valid JSON.`;
         sourceId,
         amount: amount.toFixed(2),
         currency: aiData.currency || user?.currency || 'PKR',
-        type: transactionType,
-        status: 'confirmed',
+        type: direction.type,
+        status: transactionStatus,
+        typeConfidence: direction.confidence === null ? null : direction.confidence.toFixed(2),
+        typeSource: direction.source,
         merchant: aiData.merchant || null,
         description: description || null,
         occurredAt: new Date(),
@@ -259,11 +271,11 @@ If a field is not present, omit it. Always return valid JSON.`;
       })
       .returning({ id: transactions.id });
 
-    // Step 7: Update receipt as success
+    // Step 7: Update the receipt with the same status
     await db
       .update(receipts)
       .set({
-        status: 'success',
+        status: receiptStatus,
         aiResponse: aiData,
         ocrProvider,
         aiModel,
@@ -273,7 +285,7 @@ If a field is not present, omit it. Always return valid JSON.`;
       })
       .where(eq(receipts.id, receiptId));
 
-    console.log(`[Worker] Receipt ${receiptId}: Success — transaction ${newTransaction.id} created (confirmed)`);
+    console.log(`[Worker] Receipt ${receiptId}: ${receiptStatus} — transaction ${newTransaction.id} created (${transactionStatus})`);
   } catch (err) {
     console.error(`[Worker] Receipt ${receiptId} failed:`, err.message);
     await handleReceiptFailure(receiptId, err);
@@ -337,7 +349,7 @@ async function recoverStaleLocks() {
       UPDATE receipts
       SET status = 'queued', locked_at = NULL, locked_by = NULL, updated_at = now()
       WHERE status = 'processing'
-        AND locked_at < now() - interval '${STALE_LOCK_THRESHOLD_MIN} minutes'
+        AND locked_at < now() - (${STALE_LOCK_THRESHOLD_MIN}::int * interval '1 minute')
       RETURNING id
     `);
 

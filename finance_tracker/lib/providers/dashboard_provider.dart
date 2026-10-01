@@ -57,16 +57,12 @@ class DashboardProvider extends ChangeNotifier {
   }
 
   void previousMonth() {
-    final parts = _month.split('-');
-    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]) - 1);
-    _month = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    _month = Formatters.shiftMonth(_month, -1);
     loadDashboard();
   }
 
   void nextMonth() {
-    final parts = _month.split('-');
-    final date = DateTime(int.parse(parts[0]), int.parse(parts[1]) + 1);
-    _month = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    _month = Formatters.shiftMonth(_month, 1);
     loadDashboard();
   }
 

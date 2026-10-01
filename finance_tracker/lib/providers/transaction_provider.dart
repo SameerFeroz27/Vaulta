@@ -32,6 +32,7 @@ class TransactionProvider extends ChangeNotifier {
   TransactionFilters _filters = TransactionFilters();
   bool _isLoading = false;
   bool _isLoadingMore = false;
+  int _pendingReviewCount = 0;
   String? _error;
 
   List<Transaction> get transactions => _transactions;
@@ -42,6 +43,10 @@ class TransactionProvider extends ChangeNotifier {
   String? get error => _error;
   bool get hasMore => _pagination?.hasNext ?? false;
 
+  /// How many transactions are waiting on a direction decision. Kept live so the
+  /// review queue stays discoverable instead of silently accumulating.
+  int get pendingReviewCount => _pendingReviewCount;
+
   /// Load the first page of transactions with current filters.
   Future<void> loadTransactions() async {
     _isLoading = true;
@@ -49,15 +54,27 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Run the count alongside the list rather than after it.
+      final countFuture = _fetchPendingReviewCount();
       final result = await _transactionService.list(page: 1, filters: _filters);
       _transactions = result.transactions;
       _pagination = result.pagination;
+      _pendingReviewCount = await countFuture;
     } catch (e) {
       _error = e.toString();
     }
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Failures here must not break the list itself, so they resolve to zero.
+  Future<int> _fetchPendingReviewCount() async {
+    try {
+      return await _transactionService.countByStatus('needs_review');
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Load the next page (for infinite scroll).
@@ -120,6 +137,20 @@ class TransactionProvider extends ChangeNotifier {
     }
   }
 
+  /// Confirm a needs_review transaction, keeping the direction it already has.
+  Future<bool> confirmTransaction(int id) async {
+    try {
+      await _transactionService.confirm(id);
+      await loadTransactions();
+      _refreshDependents();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Delete a transaction and refresh the list.
   Future<bool> deleteTransaction(int id) async {
     try {
@@ -127,6 +158,10 @@ class TransactionProvider extends ChangeNotifier {
       _transactions = _transactions.where((t) => t.id != id).toList();
       notifyListeners();
       _refreshDependents();
+      // The list is filtered locally here, so refresh the count explicitly in case
+      // the deleted row was one of the pending ones.
+      _pendingReviewCount = await _fetchPendingReviewCount();
+      notifyListeners();
       return true;
     } catch (e) {
       _error = e.toString();
@@ -142,6 +177,7 @@ class TransactionProvider extends ChangeNotifier {
     _filters = TransactionFilters();
     _isLoading = false;
     _isLoadingMore = false;
+    _pendingReviewCount = 0;
     _error = null;
     notifyListeners();
   }

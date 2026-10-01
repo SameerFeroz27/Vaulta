@@ -8,6 +8,7 @@ const transactionRoutes = require('./routes/transactions');
 const receiptRoutes = require('./routes/receipts');
 const dashboardRoutes = require('./routes/dashboard');
 const budgetRoutes = require('./routes/budgets');
+const loanRoutes = require('./routes/loans');
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/budgets', budgetRoutes);
+app.use('/api/loans', loanRoutes);
 
 // Centralized error handling
 app.use(errorHandler);

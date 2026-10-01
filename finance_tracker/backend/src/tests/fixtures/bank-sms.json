@@ -1,0 +1,117 @@
+{
+  "description": "Anonymised samples of real Pakistani bank SMS formats. `expectedType` is the direction parseBankMessage() should hint at, or null when the message carries no usable signal. Account numbers, names and amounts are invented.",
+  "cases": [
+    {
+      "name": "HBL debit card purchase at a merchant",
+      "bank": "HBL",
+      "message": "HBL: Your Debit Card ending 1234 has been debited with PKR 1,500.00 at KFC on 15-01-24. Available Balance: PKR 50,000.00",
+      "expectedType": "expense",
+      "note": "Classic debit alert; 'debited' plus an available balance."
+    },
+    {
+      "name": "POS purchase on a card",
+      "bank": "UBL",
+      "message": "POS purchase of PKR 850.00 made at METRO on card ending 4321.",
+      "expectedType": "expense",
+      "note": "'POS' and 'purchase' are both debit cues."
+    },
+    {
+      "name": "ATM cash withdrawal",
+      "bank": "Meezan",
+      "message": "Your account has been debited with PKR 20,000 via ATM withdrawal on 2024-01-15.",
+      "expectedType": "expense",
+      "note": "'debited' and 'withdrawal'."
+    },
+    {
+      "name": "Person-to-person transfer sent",
+      "bank": "UBL",
+      "message": "UBL: You have sent PKR 5,000 to ALI RAZA (03001234567) on 15/01/2024. TID: 987654",
+      "expectedType": "expense",
+      "note": "The phrasing the user called out — 'you have sent' must read as an expense."
+    },
+    {
+      "name": "Transfer out using 'transferred to'",
+      "bank": "HBL",
+      "message": "PKR 12,000 transferred to AHMED KHAN on 15-01-2024. Ref: 55221",
+      "expectedType": "expense",
+      "note": "'transferred to' is direction-specific; a bare 'transferred' would be ambiguous."
+    },
+    {
+      "name": "Salary credited",
+      "bank": "Meezan",
+      "message": "PKR 25,000.00 credited to your account 01234567890 on 15-Jan-2024. Salary for Jan 2024.",
+      "expectedType": "income",
+      "note": "'credited' plus 'salary'."
+    },
+    {
+      "name": "Wallet receive",
+      "bank": "Easypaisa",
+      "message": "Easypaisa: You have received Rs. 2,000 from BILAL (03451234567). New balance Rs. 3,500.",
+      "expectedType": "income",
+      "note": "'you have received' — the mirror of the sent case."
+    },
+    {
+      "name": "Transfer in using 'transferred from'",
+      "bank": "UBL",
+      "message": "PKR 8,500 transferred from SANA MALIK to your account on 15-01-2024.",
+      "expectedType": "income",
+      "note": "'transferred from' must not be caught by the 'transferred to' debit rule."
+    },
+    {
+      "name": "Merchant refund",
+      "bank": "HBL",
+      "message": "Refund of PKR 1,200 has been credited to your card ending 5678 at DARAZ on 15-01-2024.",
+      "expectedType": "income",
+      "note": "A refund is money coming back in, not an expense."
+    },
+    {
+      "name": "Signed negative amount, no verb",
+      "bank": "Generic",
+      "message": "Transaction of Rs. -1,500 on your account 0123 on 15-01-2024.",
+      "expectedType": "expense",
+      "note": "The minus sign is the only signal; the amount regex must not skip it."
+    },
+    {
+      "name": "Explicit DR marker",
+      "bank": "Generic",
+      "message": "Statement entry: PKR 3,000.00 DR on 15-01-2024.",
+      "expectedType": "expense",
+      "note": "Uppercase DR marker, matched case-sensitively."
+    },
+    {
+      "name": "Explicit CR marker",
+      "bank": "Generic",
+      "message": "Statement entry: PKR 3,000.00 CR on 15-01-2024.",
+      "expectedType": "income",
+      "note": "Uppercase CR marker, matched case-sensitively."
+    },
+    {
+      "name": "'caused' must not be read as 'used'",
+      "bank": "Generic",
+      "message": "Refund of PKR 1,200 credited to your account. Delay caused by bank.",
+      "expectedType": "income",
+      "note": "Regression: substring matching on 'used' matched inside 'caused', and debit was checked first, so this used to resolve to expense."
+    },
+    {
+      "name": "'unused' must not be read as 'used'",
+      "bank": "Generic",
+      "message": "Your card ending 1234 is unused since 01-01-2024. No transactions this month.",
+      "expectedType": null,
+      "note": "Regression: 'unused' contains 'used'."
+    },
+    {
+      "name": "Conflicting signals in one message",
+      "bank": "Generic",
+      "message": "You have received PKR 500 refund. Your account was debited PKR 1,500.",
+      "expectedType": null,
+      "note": "Debit and credit both present, so the hint is withheld and the AI decides unaided."
+    },
+    {
+      "name": "Balance notification with no direction",
+      "bank": "Generic",
+      "message": "Your account 01234567890 balance is PKR 12,345.00 as of 15-01-2024.",
+      "expectedType": null,
+      "note": "A balance statement is not a transaction; no direction may be inferred."
+    }
+  ]
+}

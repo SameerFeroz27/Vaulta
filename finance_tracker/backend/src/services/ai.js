@@ -4,8 +4,12 @@ const { Groq } = require('groq-sdk');
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
-const TEXT_MODEL = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-120b';
+/** Default model names, shared with the worker so it records the same values. */
+const DEFAULT_VISION_MODEL = 'qwen/qwen3.8-27b';
+const DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b';
+
+const VISION_MODEL = process.env.GROQ_VISION_MODEL || DEFAULT_VISION_MODEL;
+const TEXT_MODEL = process.env.GROQ_TEXT_MODEL || DEFAULT_TEXT_MODEL;
 const ENABLE_GROQ_VISION = process.env.ENABLE_GROQ_VISION !== 'false';
 
 const MAX_RETRIES = 3;
@@ -31,11 +35,21 @@ const RECEIPT_SYSTEM_PROMPT = `You are a receipt parsing assistant. Extract all 
 - date: string (transaction date in YYYY-MM-DD format)
 - time: string (transaction time if visible)
 - currency: string (3-letter currency code, e.g. PKR, USD)
-- type: string ("expense" for purchases/payments made, "income" for refunds/payments received)
+- type: string ("expense" for money the user paid out, "income" for money the user received)
+- typeConfidence: number (0-1, your confidence specifically in the type, not the other fields)
+- directionEvidence: string (the exact words or visual feature on the receipt that justify the type)
 - paymentMethod: string (cash, card, etc. if visible)
 - cardLast4: string (last 4 digits of card if visible)
 - items: array of objects with { name: string, quantity: number, price: number }
 - confidence: number (0-1, your confidence in the extraction)
+
+Deciding the type — the question is whether money left the user's hands or arrived in them:
+- "expense": a purchase or payment. Cues: "total" / "paid" / "amount tendered" / "sale", a card or cash payment, a customer copy, items bought from a merchant.
+- "income": money received by the user. Cues: "refund" / "returned" / "reversal" / "credit note" / "cash back" / "received", a negative or credited total.
+- If the receipt names both a sender and a recipient, work out which side the user is on from the wording.
+- Set directionEvidence to the short phrase you relied on, e.g. "receipt header says 'REFUND RECEIPT'".
+
+If the receipt gives no reliable signal for income vs expense, OMIT the type, typeConfidence and directionEvidence fields entirely. Do not guess, and do not default to expense.
 
 If a field is not present in the receipt, omit it. Always return valid JSON.`;
 
@@ -147,4 +161,6 @@ module.exports = {
   parseReceiptWithVision,
   parseTextWithGroq,
   RECEIPT_SYSTEM_PROMPT,
+  DEFAULT_VISION_MODEL,
+  DEFAULT_TEXT_MODEL,
 };
