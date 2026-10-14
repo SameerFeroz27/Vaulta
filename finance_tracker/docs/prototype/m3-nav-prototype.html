@@ -1,0 +1,1439 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
+<style>
+  #m3-nav-prototype { color-scheme: light dark; --pv-text: light-dark(#1b1b1f, #e4e2e6); --pv-muted: light-dark(#5c5f66, #a6a9b0); --pv-border: light-dark(#d8dade, #3a3d42); --pv-chip: light-dark(#eceef2, #2a2d32); }
+  #m3-nav-prototype [hidden] { display: none !important; }
+  #m3-nav-prototype .msym { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; user-select: none; }
+  #m3-nav-prototype .msym.fill { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+
+  /* ---- preview surface (conversation chrome) ---- */
+  #m3-nav-prototype .pv-wrap { display: flex; flex-direction: column; gap: 14px; }
+  #m3-nav-prototype .pv-controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  #m3-nav-prototype .pv-group { display: flex; align-items: center; gap: 8px; }
+  #m3-nav-prototype .pv-label { font-size: 12px; color: var(--pv-muted); }
+  #m3-nav-prototype .pv-seg { display: inline-flex; border: 1px solid var(--pv-border); border-radius: 999px; overflow: hidden; }
+  #m3-nav-prototype .pv-seg button { appearance: none; border: 0; background: transparent; color: var(--pv-muted); font: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer; }
+  #m3-nav-prototype .pv-seg button[aria-pressed="true"] { background: var(--pv-text); color: var(--pv-chip); font-weight: 500; }
+  #m3-nav-prototype .pv-stage { display: flex; justify-content: center; padding: 18px 12px; border-radius: 14px; }
+  #m3-nav-prototype .pv-stage.viz-dotted-background { background-image: radial-gradient(var(--pv-border) 1px, transparent 1px); background-size: 16px 16px; }
+  #m3-nav-prototype .pv-note { font-size: 12px; color: var(--pv-muted); line-height: 1.6; }
+  #m3-nav-prototype .pv-note b { color: var(--pv-text); font-weight: 500; }
+
+  /* ---- phone shell (product surface) ---- */
+  #m3-nav-prototype .phone {
+    position: relative; width: min(392px, 100%); height: 700px; display: flex; flex-direction: column;
+    border-radius: 26px; overflow: hidden; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px;
+    --app-primary: #1976d2; --app-income: #43a047; --app-expense: #e53935;
+    background: var(--app-bg); color: var(--app-text);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+  }
+  /* the phone keeps its own light/dark choice, so the reskin stays judgeable. Each theme
+     also declares its own color-scheme: without it the phone inherits the host browser's,
+     and anything the UA draws (form controls, native scrollbars, ::selection) follows the
+     host instead of the phone. */
+  #m3-nav-prototype .phone[data-theme="light"] {
+    color-scheme: light;
+    --app-bg: #ffffff; --app-surface: #f5f5f5; --app-text: rgba(0,0,0,0.87); --app-muted: rgba(0,0,0,0.60); --app-faint: rgba(0,0,0,0.38);
+    --app-divider: #e0e0e0; --app-outline: #e2e6ee; --app-warn: #ef6c00; --app-warn-surface: rgba(255,152,0,0.10); --badge-bg: #ba1a1a; --badge-fg: #ffffff;
+    --app-scroll-track: #ffffff; --app-scroll-thumb: #c4c7cc; --app-info-text: #0d47a1;
+  }
+  #m3-nav-prototype .phone[data-theme="dark"] {
+    color-scheme: dark;
+    --app-bg: #121212; --app-surface: #1e1e1e; --app-text: rgba(255,255,255,0.92); --app-muted: rgba(255,255,255,0.62); --app-faint: rgba(255,255,255,0.42);
+    --app-divider: #333333; --app-outline: #333941; --app-warn: #ffb74d; --app-warn-surface: rgba(255,152,0,0.16); --badge-bg: #ffb4ab; --badge-fg: #690005;
+    --app-scroll-track: #121212; --app-scroll-thumb: #4d5157; --app-info-text: #a8c7fa;
+  }
+  #m3-nav-prototype .phone[data-look="current"] { --card-radius: 12px; --btn-radius: 8px; --sheet-radius: 0; --nav-indicator: transparent; --nav-height: 56px; }
+  #m3-nav-prototype .phone[data-look="m3"] { --card-radius: 12px; --btn-radius: 20px; --sheet-radius: 28px 28px 0 0; --nav-indicator: #d8e2ff; --nav-height: 80px; }
+  #m3-nav-prototype .phone[data-look="m3"][data-theme="light"] { --app-surface: #eaeef5; --app-warn: #8a5100; --app-muted: rgba(0,0,0,0.68); }
+  #m3-nav-prototype .phone[data-look="m3"][data-theme="dark"] { --app-surface: #24282f; --nav-indicator: #3b4a68; --app-muted: rgba(255,255,255,0.70); }
+  /* Every surface carries a defined edge in both looks, not just the reskin. A fill this
+     close to the page reads as washed out on its own — which is exactly how the Loans,
+     Expenses by Category and Top Merchants cards were coming across. */
+  #m3-nav-prototype .card, #m3-nav-prototype .tile,
+  #m3-nav-prototype .row, #m3-nav-prototype .loan,
+  #m3-nav-prototype .search { box-shadow: inset 0 0 0 1px var(--app-outline); }
+  #m3-nav-prototype .phone[data-look="m3"] .appbar { background: color-mix(in srgb, var(--app-primary) 5%, var(--app-bg)); }
+
+  /* status bar + app bar */
+  #m3-nav-prototype .status { display: flex; justify-content: space-between; align-items: center; padding: 8px 18px 4px; font-size: 12px; color: var(--app-muted); }
+  #m3-nav-prototype .appbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px 12px; background: var(--app-bg); }
+  #m3-nav-prototype .appbar .title { font-size: 20px; font-weight: 600; flex: 1; }
+  #m3-nav-prototype .appbar .msym { color: var(--app-text); }
+  #m3-nav-prototype .appbar.block { display: block; padding: 8px 16px 0; }
+  #m3-nav-prototype .appbar.block .title { margin-bottom: 4px; }
+
+  /* tabs (Loans sub-navigation) */
+  #m3-nav-prototype .tabbar { display: flex; gap: 4px; border-bottom: 1px solid var(--app-divider); }
+  #m3-nav-prototype .phone[data-tabs="secondary"] .tabbar { border-bottom: 0; }
+  #m3-nav-prototype .tabbar button { appearance: none; background: none; border: 0; font: inherit; font-size: 14px; font-weight: 500; color: var(--app-muted); padding: 10px 4px 12px; margin-right: 20px; border-bottom: 3px solid transparent; cursor: pointer; }
+  #m3-nav-prototype .tabbar button[aria-selected="true"] { color: var(--app-primary); border-bottom-color: var(--app-primary); }
+  #m3-nav-prototype .phone[data-tabs="secondary"] .tabbar button { border-radius: 999px; border-bottom: 0; padding: 8px 16px; margin-right: 8px; }
+  #m3-nav-prototype .phone[data-tabs="secondary"] .tabbar button[aria-selected="true"] { background: color-mix(in srgb, var(--app-primary) 12%, transparent); }
+
+  /* Content */
+  #m3-nav-prototype .content { flex: 1; overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  /* Settings is the longest screen, so it carries its own bottom inset. Without it the
+     Log out tile ends flush against the nav bar and reads as cut off mid-row. */
+  #m3-nav-prototype .content[data-screen="settings"] { padding-bottom: 40px; }
+  /* The scrollbar belongs to the phone, not the operating system: the default is a bright
+     strip that fights a dark screen and a hard grey line against a light one. Light gets a
+     grey thumb on a white track; dark gets a mid-grey thumb, since anything darker just
+     disappears into the #121212 background. */
+  #m3-nav-prototype .content { scrollbar-width: thin; scrollbar-color: var(--app-scroll-thumb) var(--app-scroll-track); }
+  #m3-nav-prototype .content::-webkit-scrollbar { width: 6px; height: 6px; }
+  #m3-nav-prototype .content::-webkit-scrollbar-track { background: var(--app-scroll-track); }
+  #m3-nav-prototype .content::-webkit-scrollbar-thumb { background: var(--app-scroll-thumb); border-radius: 3px; }
+  #m3-nav-prototype .content::-webkit-scrollbar-corner { background: var(--app-scroll-track); }
+  #m3-nav-prototype .month { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 15px; font-weight: 600; padding: 2px 0 4px; }
+  #m3-nav-prototype .month .msym { font-size: 20px; color: var(--app-muted); }
+  #m3-nav-prototype .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #m3-nav-prototype .tile { background: var(--app-surface); border-radius: var(--card-radius); padding: 10px; }
+  #m3-nav-prototype .tile .k { font-size: 11px; color: var(--app-muted); display: flex; align-items: center; gap: 3px; }
+  #m3-nav-prototype .tile .k .msym { font-size: 13px; }
+  #m3-nav-prototype .tile .v { font-size: 14px; font-weight: 700; margin-top: 5px; letter-spacing: -0.2px; }
+  #m3-nav-prototype .count { text-align: center; font-size: 12px; color: var(--app-muted); }
+  #m3-nav-prototype .card { background: var(--app-surface); border-radius: var(--card-radius); padding: 14px; }
+  #m3-nav-prototype .cardhead { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+  #m3-nav-prototype .cardhead .msym { font-size: 18px; color: var(--app-primary); }
+  #m3-nav-prototype .cardhead .spacer { flex: 1; }
+  #m3-nav-prototype .cardhead .chev { color: var(--app-muted); font-size: 20px; }
+  #m3-nav-prototype .kv { display: flex; justify-content: space-between; font-size: 13px; margin-top: 10px; }
+  #m3-nav-prototype .kv .k { color: var(--app-muted); }
+  #m3-nav-prototype .kv .v { font-weight: 700; }
+  #m3-nav-prototype .overdue { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--app-warn); }
+  #m3-nav-prototype .overdue .msym { font-size: 16px; }
+  #m3-nav-prototype .catrow { display: grid; grid-template-columns: 88px 1fr 62px; align-items: center; gap: 8px; font-size: 12px; margin-top: 9px; }
+  #m3-nav-prototype .catrow .k { color: var(--app-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #m3-nav-prototype .catrow .v { text-align: right; font-weight: 600; }
+  #m3-nav-prototype .catbar { height: 8px; border-radius: 4px; background: var(--app-divider); overflow: hidden; }
+  #m3-nav-prototype .catbar i { display: block; height: 100%; border-radius: 4px; background: var(--app-primary); }
+  #m3-nav-prototype .banner { display: flex; align-items: center; gap: 8px; background: var(--app-warn-surface); border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 700; }
+  #m3-nav-prototype .banner .msym { font-size: 18px; color: var(--app-warn); }
+  #m3-nav-prototype .banner .spacer { flex: 1; }
+  #m3-nav-prototype .banner .act { color: var(--app-warn); }
+  #m3-nav-prototype .row { display: flex; align-items: center; gap: 12px; background: var(--app-surface); border-radius: var(--card-radius); padding: 12px; }
+  #m3-nav-prototype .row .dot { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; background: color-mix(in srgb, var(--app-primary) 14%, transparent); }
+  #m3-nav-prototype .row .mid { flex: 1; min-width: 0; }
+  #m3-nav-prototype .row .t { font-size: 14px; font-weight: 600; }
+  #m3-nav-prototype .row .s { font-size: 12px; color: var(--app-muted); }
+  #m3-nav-prototype .row .amt { font-size: 14px; font-weight: 700; }
+  #m3-nav-prototype .seg { display: inline-flex; border-radius: 999px; border: 1px solid var(--app-divider); overflow: hidden; align-self: flex-start; }
+  #m3-nav-prototype .seg button { appearance: none; background: none; border: 0; font: inherit; font-size: 12px; padding: 6px 14px; color: var(--app-muted); cursor: pointer; }
+  #m3-nav-prototype .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--app-primary) 14%, transparent); color: var(--app-primary); font-weight: 600; }
+  #m3-nav-prototype .bar { height: 5px; border-radius: 3px; background: var(--app-divider); margin-top: 8px; overflow: hidden; }
+  #m3-nav-prototype .bar i { display: block; height: 100%; background: var(--app-primary); }
+  #m3-nav-prototype .ltop .amtcol { display: flex; flex-direction: column; align-items: flex-end; }
+  #m3-nav-prototype .ltop .amtlbl { font-size: 10px; color: var(--app-muted); }
+  /* Log out sits apart from the settings above it: an explicit rule separates it, and it
+     drops the usual tile underline so the rule reads as the one divider. */
+  #m3-nav-prototype .listtile.sep { margin-top: 18px; border-top: 1px solid var(--app-divider); border-bottom: 0; }
+  #m3-nav-prototype .person { padding: 7px 0; }
+  #m3-nav-prototype .person + .person, #m3-nav-prototype .person.total { border-top: 1px solid var(--app-divider); }
+  #m3-nav-prototype .person .pname { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; }
+  #m3-nav-prototype .person .st { font-size: 11px; font-weight: 500; color: var(--app-warn); }
+  #m3-nav-prototype .person .st.ok { color: var(--app-income); }
+  #m3-nav-prototype .person .st.off { color: var(--app-faint); }
+  #m3-nav-prototype .pl { display: flex; justify-content: space-between; font-size: 13px; margin-top: 4px; }
+  #m3-nav-prototype .pl .k { color: var(--app-muted); }
+  #m3-nav-prototype .pl .v { font-weight: 600; }
+  #m3-nav-prototype .listtile { display: flex; align-items: center; gap: 14px; padding: 13px 4px; border-bottom: 1px solid var(--app-divider); font-size: 14px; }
+  #m3-nav-prototype .listtile .msym { color: var(--app-muted); font-size: 20px; }
+  #m3-nav-prototype .listtile .spacer { flex: 1; }
+  #m3-nav-prototype .profile { display: flex; align-items: center; gap: 14px; padding: 6px 0 12px; }
+  #m3-nav-prototype .avatar { width: 44px; height: 44px; border-radius: 22px; background: var(--app-primary); color: #fff; display: grid; place-items: center; font-weight: 600; }
+  #m3-nav-prototype .btn-demo { appearance: none; border: 0; font: inherit; font-size: 13px; font-weight: 600; color: #fff; background: var(--app-primary); border-radius: var(--btn-radius); padding: 11px 18px; cursor: pointer; align-self: flex-start; }
+
+  #m3-nav-prototype .sect { font-size: 12px; font-weight: 600; color: var(--app-muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 6px 0 0; }
+  /* Danger is the expense red, so "this undoes something" is never the quietest row. */
+  #m3-nav-prototype .listtile.danger, #m3-nav-prototype .listtile.danger .msym { color: var(--app-expense); font-weight: 600; }
+  #m3-nav-prototype .search { display: flex; align-items: center; gap: 10px; background: var(--app-surface); border-radius: 999px; padding: 11px 16px; color: var(--app-muted); font-size: 14px; }
+  #m3-nav-prototype .search .msym { font-size: 20px; }
+  #m3-nav-prototype .dayhead { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 600; color: var(--app-muted); padding: 2px 2px 0; }
+  #m3-nav-prototype .dayhead .v { font-variant-numeric: tabular-nums; }
+  #m3-nav-prototype .chipbtn { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; border: 1px solid var(--app-divider); border-radius: 999px; padding: 7px 8px 7px 14px; font: inherit; font-size: 13px; font-weight: 600; background: none; color: var(--app-text); cursor: pointer; }
+  #m3-nav-prototype .chipbtn .msym { font-size: 18px; color: var(--app-muted); }
+  #m3-nav-prototype .chipbtn .n { background: color-mix(in srgb, var(--app-primary) 16%, transparent); color: var(--app-primary); border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+  #m3-nav-prototype .loan { background: var(--app-surface); border-radius: var(--card-radius); padding: 12px; }
+  #m3-nav-prototype .ltop { display: flex; align-items: center; gap: 12px; }
+  #m3-nav-prototype .ltop .mid { flex: 1; min-width: 0; }
+  #m3-nav-prototype .ltop .t { font-size: 14px; font-weight: 600; }
+  #m3-nav-prototype .ltop .s { font-size: 12px; color: var(--app-muted); }
+  #m3-nav-prototype .ltop .amt { font-size: 14px; font-weight: 700; }
+  #m3-nav-prototype .lfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+  #m3-nav-prototype .lfoot .s { font-size: 11px; color: var(--app-muted); }
+  #m3-nav-prototype .pay { appearance: none; border: 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--app-primary); background: color-mix(in srgb, var(--app-primary) 12%, transparent); border-radius: var(--card-radius); padding: 8px 13px; cursor: pointer; white-space: nowrap; }
+
+  /* bottom navigation */
+  #m3-nav-prototype .navbar { display: flex; height: var(--nav-height); background: var(--app-bg); border-top: 1px solid var(--app-divider); flex: 0 0 auto; }
+  #m3-nav-prototype .phone[data-nav="m3"] .navbar { border-top: 0; box-shadow: 0 -1px 0 var(--app-divider); }
+  #m3-nav-prototype .dest { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; appearance: none; background: none; border: 0; font: inherit; padding: 0; cursor: pointer; color: var(--app-faint); }
+  #m3-nav-prototype .dest .ic { position: relative; display: grid; place-items: center; width: 64px; height: 32px; border-radius: 16px; background: var(--nav-indicator); }
+  /* min-width:0 on the destination plus a nowrap label keeps a long word from forcing the
+     row wider than the phone; the ellipsis is only a last resort, since the labels are
+     short enough to fit their slot at any phone width. */
+  #m3-nav-prototype .dest .lbl { font-size: 11px; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #m3-nav-prototype .dest .msym { font-size: 24px; }
+  #m3-nav-prototype .dest[aria-selected="true"] { color: var(--app-primary); }
+  #m3-nav-prototype .dest[aria-selected="true"] .lbl { font-weight: 600; }
+  #m3-nav-prototype .dest .badge { position: absolute; top: -3px; right: 14px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--badge-bg); color: var(--badge-fg); font-size: 10px; font-weight: 700; display: grid; place-items: center; padding: 0 4px; }
+  #m3-nav-prototype .phone[data-nav="m2"] .dest { justify-content: center; }
+  #m3-nav-prototype .phone[data-nav="m2"] .badge { display: none; }
+  #m3-nav-prototype .phone[data-nav="m2"] .dest .ic { background: transparent; }
+  /* flat: nothing tonal at all. The bar stays a plain surface and the selection is marked
+     by a line across the top edge of the selected destination — a single line that glides
+     between them, so see .navline in the motion block rather than a line per item. */
+  #m3-nav-prototype .phone[data-nav="flat"] .navbar { border-top: 0; box-shadow: 0 -1px 0 var(--app-divider); }
+  #m3-nav-prototype .phone[data-nav="flat"] .dest .ic { background: transparent; }
+
+  #m3-nav-prototype .fgrp { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; margin-bottom: 12px; }
+  #m3-nav-prototype .fgrp .flab { font-size: 12px; color: var(--app-muted); }
+  #m3-nav-prototype .btn-ghost { appearance: none; font: inherit; font-size: 13px; font-weight: 600; background: transparent; color: var(--app-primary); border: 1px solid var(--app-divider); border-radius: var(--btn-radius); padding: 11px 18px; cursor: pointer; }
+  #m3-nav-prototype .sheet-actions { display: flex; gap: 10px; }
+  #m3-nav-prototype .sheet-actions > * { flex: 1; text-align: center; }
+
+  /* bottom sheet */
+  /* Sheets slide rather than appear: the scrim fades in, the panel comes up from the bottom
+     edge, and the way out is a little shorter than the way in. */
+  #m3-nav-prototype .scrim { position: absolute; inset: 0; z-index: 7; background: rgba(0,0,0,0.32); opacity: 0; pointer-events: none; transition: opacity 220ms var(--ease-std); }
+  #m3-nav-prototype .phone:not([data-sheet="closed"]) .scrim { opacity: 1; pointer-events: auto; }
+  #m3-nav-prototype .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--app-bg); border-radius: var(--sheet-radius); padding: 10px 18px 18px; box-shadow: 0 -8px 30px rgba(0,0,0,0.22); transform: translateY(101%); transition: transform 300ms var(--ease-emph); }
+  #m3-nav-prototype .sheet.sheet-open { transform: translateY(0); }
+  #m3-nav-prototype .phone[data-sheet="closed"] .sheet { transition-duration: 220ms; }
+  /* Reduced motion swaps the slide for the fade the guide asks for. */
+  #m3-nav-prototype .phone[data-motion="reduced"] .sheet { transform: none; opacity: 0; pointer-events: none; transition: opacity 140ms var(--ease-std); }
+  #m3-nav-prototype .phone[data-motion="reduced"] .sheet.sheet-open { opacity: 1; pointer-events: auto; }
+  #m3-nav-prototype .grab { width: 32px; height: 4px; border-radius: 2px; background: var(--app-faint); margin: 0 auto 12px; display: none; }
+  #m3-nav-prototype .phone[data-look="m3"] .grab { display: block; }
+  #m3-nav-prototype .sheet h4 { margin: 0; font-size: 20px; font-weight: 600; }
+  #m3-nav-prototype .sheet .sub { font-size: 13px; color: var(--app-muted); margin: 4px 0 14px; }
+  #m3-nav-prototype .field { border-radius: 8px; background: var(--app-surface); padding: 11px 14px; font-size: 14px; margin-bottom: 10px; }
+  #m3-nav-prototype .field .fl { font-size: 11px; color: var(--app-muted); }
+  /* The callout tracks the phone's own theme via --app-info-text. It must NOT use
+     light-dark(): that follows the host browser's colour scheme, so a light phone on a
+     dark host rendered #a8c7fa on white — 1.7:1, invisible. */
+  #m3-nav-prototype .info { background: color-mix(in srgb, #1976d2 10%, transparent); border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 700; color: var(--app-info-text); margin-bottom: 10px; }
+  #m3-nav-prototype .swt { display: flex; align-items: center; gap: 12px; margin: 12px 0 14px; }
+  #m3-nav-prototype .swt .spacer { flex: 1; }
+  #m3-nav-prototype .swt .st { font-size: 14px; }
+  #m3-nav-prototype .swt .ss { font-size: 11px; color: var(--app-muted); }
+  #m3-nav-prototype .swt .track { width: 40px; height: 22px; border-radius: 11px; background: var(--app-primary); position: relative; flex: 0 0 auto; }
+  #m3-nav-prototype .swt .track i { position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; border-radius: 8px; background: #fff; }
+  #m3-nav-prototype .sheet .btn-demo { width: 100%; text-align: center; }
+  #m3-nav-prototype .foot { text-align: center; font-size: 11px; color: var(--app-muted); margin-top: 8px; }
+
+  /* a listtile that is also a control (Base currency row, currency choices) */
+  #m3-nav-prototype button.listtile { appearance: none; background: none; border: 0; border-bottom: 1px solid var(--app-divider); font: inherit; color: inherit; cursor: pointer; text-align: left; width: 100%; }
+  #m3-nav-prototype .cur .csym { flex: 0 0 38px; font-weight: 600; }
+  #m3-nav-prototype .cur .cname { font-size: 14px; }
+  #m3-nav-prototype .cur .code { color: var(--app-muted); font-size: 12px; }
+  #m3-nav-prototype .cur .check { visibility: hidden; font-size: 20px; color: var(--app-primary); }
+  #m3-nav-prototype .cur[aria-selected="true"] .cname { font-weight: 600; }
+  #m3-nav-prototype .cur[aria-selected="true"] .check { visibility: visible; }
+  #m3-nav-prototype .cur:last-child { border-bottom: 0; }
+  #m3-nav-prototype .curlist { margin-top: 2px; }
+
+  /* ---- motion ------------------------------------------------------------------
+     Durations follow the tab & tile transitions guide: container transform 320ms
+     emphasized, detail content 150ms fading in after a 110ms head / 170ms body delay,
+     collapse 300ms, tab slide 300ms, indicator glide 280ms, list stagger 40ms per item
+     capped at six. Every one is a starting point to tune on a real device. */
+  #m3-nav-prototype { --ease-emph: cubic-bezier(0.2, 0, 0, 1); --ease-std: cubic-bezier(0.4, 0, 0.2, 1); }
+
+  @keyframes vz-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes vz-fade-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes vz-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes vz-slide-forward { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+  @keyframes vz-slide-back { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+
+  /* Tab switch: the incoming screen slides in from the side the tab order came from —
+     forward enters from the right and travels left, back enters from the left. */
+  #m3-nav-prototype .content.screen-forward { animation: vz-slide-forward 300ms var(--ease-emph) both; }
+  #m3-nav-prototype .content.screen-back { animation: vz-slide-back 300ms var(--ease-emph) both; }
+  #m3-nav-prototype .content.screen-fade { animation: vz-fade 200ms var(--ease-std) both; }
+  /* List stagger on entry: 40ms apart, and nothing after the sixth item waits its turn. */
+  #m3-nav-prototype .stagger { animation: vz-rise 260ms var(--ease-std) both; }
+
+  /* One indicator line that glides between destinations, rather than a line per item. */
+  #m3-nav-prototype .navbar { position: relative; }
+  #m3-nav-prototype .navline { display: none; position: absolute; top: 0; left: 0; width: 0; height: 3px; background: var(--app-primary); pointer-events: none; transition: transform 280ms var(--ease-emph), width 280ms var(--ease-emph); }
+  #m3-nav-prototype .phone[data-nav="flat"] .navline { display: block; }
+  #m3-nav-prototype .navline.no-anim { transition: none; }
+
+  /* Tile to detail: one surface grows from the tapped tile's own rectangle to the full
+     screen, clipped rather than reflowed, so the group stays perfectly in step. It starts
+     as the tile — same colour, same corner radius — and settles to the screen's own
+     background with square corners. The content is clipped by that same shape and only
+     fades in once the container is already moving, so the origin of the tap stays clear. */
+  #m3-nav-prototype .detail { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 6; display: none; background: var(--app-surface); overflow: hidden; }
+  #m3-nav-prototype .phone[data-detail="open"] .detail,
+  #m3-nav-prototype .phone[data-detail="closing"] .detail { display: block; }
+  #m3-nav-prototype .dcontent { position: absolute; inset: 0; overflow-y: auto; padding: 0 16px 22px; display: none; }
+  #m3-nav-prototype .dcontent.active { display: block; }
+  #m3-nav-prototype .dhead, #m3-nav-prototype .dbody { opacity: 0; }
+  #m3-nav-prototype .phone[data-detail="open"] .dcontent.active .dhead { animation: vz-fade 150ms var(--ease-std) 110ms both; }
+  #m3-nav-prototype .phone[data-detail="open"] .dcontent.active .dbody { animation: vz-fade 150ms var(--ease-std) 170ms both; }
+  #m3-nav-prototype .phone[data-detail="closing"] .dcontent.active .dhead,
+  #m3-nav-prototype .phone[data-detail="closing"] .dcontent.active .dbody { animation: vz-fade-out 120ms var(--ease-std) both; }
+
+  #m3-nav-prototype .dbar { display: flex; align-items: center; gap: 10px; padding: 10px 0 6px; }
+  #m3-nav-prototype .dbar .backbtn { appearance: none; border: 0; background: none; padding: 6px; margin-left: -6px; cursor: pointer; color: var(--app-text); display: grid; place-items: center; }
+  #m3-nav-prototype .dbar .msym { font-size: 22px; }
+  #m3-nav-prototype .dbar .dtitle { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #m3-nav-prototype .dhero { padding: 8px 0 2px; }
+  #m3-nav-prototype .dhero .damt { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; }
+  #m3-nav-prototype .dhero .dsub { font-size: 13px; color: var(--app-muted); margin-top: 3px; }
+  #m3-nav-prototype .dhero .bar { margin-top: 12px; }
+  #m3-nav-prototype .drows { margin-top: 16px; border-top: 1px solid var(--app-divider); }
+  #m3-nav-prototype .drow { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--app-divider); font-size: 13px; }
+  #m3-nav-prototype .drow .k { color: var(--app-muted); }
+  #m3-nav-prototype .drow .v { font-weight: 600; text-align: right; }
+  #m3-nav-prototype .dactions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  #m3-nav-prototype .dbtn { appearance: none; border: 0; font: inherit; font-size: 14px; font-weight: 600; text-align: center; padding: 13px; border-radius: var(--btn-radius); cursor: pointer; }
+  #m3-nav-prototype .dbtn.primary { background: var(--app-primary); color: #fff; }
+  #m3-nav-prototype .dbtn.ghost { background: transparent; color: var(--app-primary); border: 1px solid var(--app-divider); }
+  #m3-nav-prototype .dbtn.danger { background: transparent; color: var(--app-expense); border: 1px solid color-mix(in srgb, var(--app-expense) 40%, transparent); }
+  #m3-nav-prototype .dnote { margin-top: 14px; font-size: 12px; line-height: 1.5; color: var(--app-muted); }
+  #m3-nav-prototype .dicon { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; margin-bottom: 10px; }
+
+  /* Reduced motion: skip the slide, the stagger and the container growth, and keep only a
+     short fade. The chrome toggle sets the same attribute, so this is judgeable without
+     changing the operating system setting. */
+  #m3-nav-prototype .phone[data-motion="reduced"] .content.screen-forward,
+  #m3-nav-prototype .phone[data-motion="reduced"] .content.screen-back { animation: vz-fade 140ms var(--ease-std) both; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .stagger { animation: none; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .navline { transition: none; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .detail { transition: none !important; }
+  #m3-nav-prototype .phone[data-motion="reduced"][data-detail="open"] .detail { animation: vz-fade 140ms var(--ease-std) both; }
+  #m3-nav-prototype .phone[data-motion="reduced"][data-detail="closing"] .detail { animation: vz-fade-out 140ms var(--ease-std) both; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .dhead,
+  #m3-nav-prototype .phone[data-motion="reduced"] .dbody { animation: vz-fade 140ms var(--ease-std) both; }
+  /* And no staggered waiting either: with no container to keep pace with, the detail's
+     content just arrives in one short fade. */
+  #m3-nav-prototype .phone[data-motion="reduced"][data-detail="open"] .dcontent.active .dhead,
+  #m3-nav-prototype .phone[data-motion="reduced"][data-detail="open"] .dcontent.active .dbody { animation: vz-fade 140ms var(--ease-std) both; }
+
+  /* Lighter chrome for the small back chevron in the detail bar. */
+  #m3-nav-prototype .sheet .listtile.review { gap: 10px; }
+  #m3-nav-prototype .reviewrow { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--app-divider); font-size: 13px; }
+  #m3-nav-prototype .reviewrow .t { flex: 1; min-width: 0; font-weight: 600; }
+
+  /* ---- sign in -------------------------------------------------------------------
+     Pre-auth, so it replaces the whole tab shell rather than becoming a fifth destination:
+     no app bar and no nav, but the phone keeps its status bar. Styled M3 and driven by the
+     same motion recipe as the rest of the app. */
+  #m3-nav-prototype .phone { --status-h: 28px; }
+  #m3-nav-prototype .phone[data-theme="light"] { --app-field: #eef1f7; --app-hero: color-mix(in srgb, var(--app-primary) 7%, var(--app-bg)); }
+  #m3-nav-prototype .phone[data-theme="dark"] { --app-field: #2b2f37; --app-hero: color-mix(in srgb, var(--app-primary) 16%, var(--app-bg)); }
+
+  #m3-nav-prototype .auth { position: absolute; left: 0; right: 0; top: var(--status-h); bottom: 0; z-index: 9; display: none; background: var(--app-bg); overflow-y: auto; transition: opacity 220ms var(--ease-std), transform 220ms var(--ease-std); }
+  #m3-nav-prototype .phone[data-view="auth"] .auth { display: block; }
+  #m3-nav-prototype .phone[data-view="auth"] .appbar,
+  #m3-nav-prototype .phone[data-view="auth"] .content,
+  #m3-nav-prototype .phone[data-view="auth"] .navbar { display: none; }
+  #m3-nav-prototype .auth.auth-out { opacity: 0; transform: translateY(-8px); }
+
+  #m3-nav-prototype .auth-inner { display: flex; flex-direction: column; min-height: 100%; padding: 20px 24px 28px; }
+
+  /* Entrance: every block rises in 40 ms after the one before it. */
+  #m3-nav-prototype .phone[data-view="auth"] .ain { animation: vz-rise 260ms var(--ease-std) both; animation-delay: calc(var(--i, 0) * 40ms); }
+
+  #m3-nav-prototype .authhero { text-align: center; padding: 12px 0 4px; }
+  #m3-nav-prototype .brandmark { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto; border-radius: 18px; background: color-mix(in srgb, var(--app-primary) 14%, transparent); color: var(--app-primary); }
+  #m3-nav-prototype .brandmark .msym { font-size: 28px; }
+  #m3-nav-prototype .wordmark { margin-top: 14px; font-size: 26px; font-weight: 700; letter-spacing: -0.4px; }
+  #m3-nav-prototype .tagline { margin-top: 4px; font-size: 14px; color: var(--app-muted); }
+
+  #m3-nav-prototype .authcard { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  #m3-nav-prototype .afield { position: relative; }
+  #m3-nav-prototype .afield input { width: 100%; box-sizing: border-box; appearance: none; font: inherit; font-size: 15px; color: var(--app-text); background: var(--app-field); border: 2px solid transparent; border-radius: var(--btn-radius); padding: 20px 15px 7px; }
+  #m3-nav-prototype .afield input:focus { outline: none; border-color: var(--app-primary); }
+  #m3-nav-prototype .aflabel { position: absolute; left: 16px; top: 16px; font-size: 15px; color: var(--app-muted); pointer-events: none; transform-origin: 0 50%; transition: transform 160ms var(--ease-std); }
+  #m3-nav-prototype .afield input:focus ~ .aflabel,
+  #m3-nav-prototype .afield input:not(:placeholder-shown) ~ .aflabel { transform: translateY(-9px) scale(0.78); }
+  #m3-nav-prototype .afield input[type="password"] { padding-right: 46px; }
+  #m3-nav-prototype .aeye { position: absolute; right: 6px; top: 8px; appearance: none; border: 0; background: none; padding: 8px; cursor: pointer; color: var(--app-muted); display: grid; place-items: center; }
+  #m3-nav-prototype .aeye .msym { font-size: 20px; }
+  #m3-nav-prototype .aferr { display: none; margin: 5px 4px 0; font-size: 12px; color: var(--app-expense); }
+  #m3-nav-prototype .afield.bad input { border-color: var(--app-expense); }
+  #m3-nav-prototype .afield.bad .aferr { display: block; }
+
+  /* The app reports a failed sign-in in a snackbar; inline is the calmer native pattern. */
+  #m3-nav-prototype .aerrbanner { display: flex; align-items: center; gap: 8px; border-radius: 12px; padding: 11px 13px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, var(--app-expense) 12%, transparent); color: var(--app-expense); }
+  #m3-nav-prototype .aerrbanner .msym { font-size: 18px; }
+
+  #m3-nav-prototype .aforgot { align-self: flex-end; appearance: none; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--app-primary); padding: 2px 2px 6px; cursor: pointer; }
+  #m3-nav-prototype .asubmit { appearance: none; border: 0; font: inherit; font-size: 15px; font-weight: 600; color: #fff; background: var(--app-primary); border-radius: var(--btn-radius); padding: 16px; cursor: pointer; display: grid; place-items: center; }
+  #m3-nav-prototype .asubmit[data-loading="1"] { opacity: 0.85; cursor: default; }
+  #m3-nav-prototype .aspin { display: none; width: 18px; height: 18px; border-radius: 9px; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; animation: vz-spin 700ms linear infinite; }
+  #m3-nav-prototype .asubmit[data-loading="1"] .alabel { display: none; }
+  #m3-nav-prototype .asubmit[data-loading="1"] .aspin { display: block; }
+  @keyframes vz-spin { to { transform: rotate(360deg); } }
+
+  #m3-nav-prototype .acreate { appearance: none; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--app-primary); padding: 6px; cursor: pointer; align-self: center; }
+  #m3-nav-prototype .authfoot { margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: var(--app-muted); text-align: center; }
+
+  /* Keep me signed in. Deliberately no "continue as" shortcut and no remembered account —
+     the form is the only place an account is named. */
+  #m3-nav-prototype .akeep { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--app-muted); cursor: pointer; padding: 2px; }
+  #m3-nav-prototype .akeep input { width: 18px; height: 18px; accent-color: var(--app-primary); margin: 0; }
+
+  /* Wrong details get a shake — the one place a bounce is worth it, because it says "not
+     that" without moving anything the user is reading. */
+  @keyframes vz-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+  #m3-nav-prototype .authcard.shake { animation: vz-shake 320ms var(--ease-std); }
+
+  /* Layout variants, judged with the Sign-in layout control. Same markup, different shells. */
+  #m3-nav-prototype .phone[data-auth="hero"] .authhero { padding: 26px 0 30px; background: var(--app-hero); border-radius: 0 0 28px 28px; margin: -20px -24px 0; }
+  #m3-nav-prototype .phone[data-auth="hero"] .authcard { margin-top: -18px; }
+  #m3-nav-prototype .phone[data-auth="card"] .auth-inner { justify-content: center; }
+  #m3-nav-prototype .phone[data-auth="card"] .authcard { background: var(--app-surface); border-radius: 28px; padding: 20px 18px 18px; box-shadow: inset 0 0 0 1px var(--app-outline); }
+  #m3-nav-prototype .phone[data-auth="card"] .authhero { padding-bottom: 0; }
+
+  /* Reduced motion: no rise, no shake, no handoff slide — a short fade and nothing else. */
+  #m3-nav-prototype .phone[data-motion="reduced"][data-view="auth"] .ain { animation: vz-fade 140ms var(--ease-std) both; animation-delay: 0ms; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .authcard.shake { animation: none; }
+  #m3-nav-prototype .phone[data-motion="reduced"] .auth { transition: opacity 140ms var(--ease-std); }
+  #m3-nav-prototype .phone[data-motion="reduced"] .auth.auth-out { transform: none; }
+</style>
+
+<div id="m3-nav-prototype">
+  <div class="pv-wrap">
+    <div class="pv-controls">
+      <div class="pv-group">
+        <span class="pv-label">Bottom nav</span>
+        <span class="pv-seg" role="group" aria-label="Bottom navigation style">
+          <button type="button" data-ctl="nav" data-val="m2" aria-pressed="true">Material 2 (today)</button>
+          <button type="button" data-ctl="nav" data-val="m3" aria-pressed="false">Material 3</button>
+          <button type="button" data-ctl="nav" data-val="flat" aria-pressed="false">Flat + top line</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Overall look</span>
+        <span class="pv-seg" role="group" aria-label="Overall look">
+          <button type="button" data-ctl="look" data-val="current" aria-pressed="true">Current</button>
+          <button type="button" data-ctl="look" data-val="m3" aria-pressed="false">M3 reskin</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Loans tabs</span>
+        <span class="pv-seg" role="group" aria-label="Loans sub-tab style">
+          <button type="button" data-ctl="tabs" data-val="primary" aria-pressed="true">Primary (today)</button>
+          <button type="button" data-ctl="tabs" data-val="secondary" aria-pressed="false">Secondary</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Phone theme</span>
+        <span class="pv-seg" role="group" aria-label="Phone theme">
+          <button type="button" data-ctl="theme" data-val="light" aria-pressed="true">Light</button>
+          <button type="button" data-ctl="theme" data-val="dark" aria-pressed="false">Dark</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Motion</span>
+        <span class="pv-seg" role="group" aria-label="Motion">
+          <button type="button" data-ctl="motion" data-val="full" aria-pressed="true">Full</button>
+          <button type="button" data-ctl="motion" data-val="reduced" aria-pressed="false">Reduced</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Screen</span>
+        <span class="pv-seg" role="group" aria-label="Screen">
+          <button type="button" data-ctl="view" data-val="app" aria-pressed="true">App</button>
+          <button type="button" data-ctl="view" data-val="auth" aria-pressed="false">Sign in</button>
+        </span>
+      </div>
+      <div class="pv-group">
+        <span class="pv-label">Sign-in layout</span>
+        <span class="pv-seg" role="group" aria-label="Sign-in layout">
+          <button type="button" data-ctl="auth" data-val="plain" aria-pressed="true">Plain</button>
+          <button type="button" data-ctl="auth" data-val="hero" aria-pressed="false">Hero</button>
+          <button type="button" data-ctl="auth" data-val="card" aria-pressed="false">Card</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="pv-stage viz-dotted-background">
+      <div class="phone" id="pv-phone" data-nav="m2" data-look="current" data-tabs="primary" data-theme="light" data-motion="full" data-sheet="closed" data-detail="closed">
+        <div class="status"><span>9:41</span><span>Vaulta</span><span>&#9679;&#9679;&#9679;</span></div>
+
+        <div class="appbar" data-screen="dashboard">
+          <span class="title">Dashboard</span>
+        </div>
+        <div class="appbar" data-screen="transactions">
+          <span class="title">Transactions</span>
+          <span class="msym" aria-hidden="true">document_scanner</span>
+          <span class="msym" aria-hidden="true">filter_list</span>
+        </div>
+        <div class="appbar block" data-screen="loans">
+          <span class="title">Loans</span>
+          <div class="tabbar" role="tablist" aria-label="Loans views">
+            <button type="button" role="tab" data-ltab="list" aria-selected="true">Loans</button>
+            <button type="button" role="tab" data-ltab="people" aria-selected="false">By person</button>
+          </div>
+        </div>
+        <div class="appbar" data-screen="settings">
+          <span class="title">Settings</span>
+        </div>
+
+        <div class="content" data-screen="dashboard">
+          <div class="month"><span class="msym" aria-hidden="true">chevron_left</span>October 2026<span class="msym" aria-hidden="true">chevron_right</span></div>
+          <div class="tiles">
+            <div class="tile" data-tile="generic" data-title="Income" data-hero=".v"><div class="k"><span class="msym" aria-hidden="true">arrow_upward</span>Income</div><div class="v" style="color:var(--app-income)" data-pkr="85000">Rs 85,000.00</div><div class="drill" hidden><div class="kv"><span class="k">Salary</span><span class="v" data-pkr="70000">Rs 70,000.00</span></div><div class="kv"><span class="k">Freelance</span><span class="v" data-pkr="15000">Rs 15,000.00</span></div></div></div>
+            <div class="tile" data-tile="generic" data-title="Expense" data-hero=".v"><div class="k"><span class="msym" aria-hidden="true">arrow_downward</span>Expense</div><div class="v" style="color:var(--app-expense)" data-pkr="42300">Rs 42,300.00</div><div class="drill" hidden><div class="kv"><span class="k">Groceries</span><span class="v" data-pkr="14900" data-dec="0">Rs 14,900</span></div><div class="kv"><span class="k">Transport</span><span class="v" data-pkr="9800" data-dec="0">Rs 9,800</span></div><div class="kv"><span class="k">Utilities</span><span class="v" data-pkr="6900" data-dec="0">Rs 6,900</span></div><div class="kv"><span class="k">Dining</span><span class="v" data-pkr="6200" data-dec="0">Rs 6,200</span></div><div class="kv"><span class="k">Everything else</span><span class="v" data-pkr="4500" data-dec="0">Rs 4,500</span></div></div></div>
+            <div class="tile" data-tile="generic" data-title="Balance" data-hero=".v"><div class="k"><span class="msym" aria-hidden="true">account_balance_wallet</span>Balance</div><div class="v" style="color:var(--app-primary)" data-pkr="42700">Rs 42,700.00</div><div class="drill" hidden><div class="kv"><span class="k">Income in</span><span class="v" data-pkr="85000">Rs 85,000.00</span></div><div class="kv"><span class="k">Expense out</span><span class="v" data-pkr="42300">Rs 42,300.00</span></div><div class="kv"><span class="k">Left over</span><span class="v" data-pkr="42700">Rs 42,700.00</span></div></div></div>
+          </div>
+          <div class="count">24 transactions</div>
+          <div class="card" data-tile="generic" data-title="Loans" data-goto="loans" data-goto-label="See all loans">
+            <div class="cardhead"><span class="msym" aria-hidden="true">handshake</span>Loans<span class="spacer"></span><span class="msym chev" aria-hidden="true">chevron_right</span></div>
+            <div class="kv"><span class="k">Owed to me</span><span class="v" style="color:var(--app-income)" data-pkr="26000">Rs 26,000.00</span></div>
+            <div class="kv"><span class="k">I owe</span><span class="v" style="color:var(--app-expense)" data-pkr="40000">Rs 40,000.00</span></div>
+            <div class="overdue"><span class="msym" aria-hidden="true">warning</span>Overdue: Bilal</div>
+          </div>
+          <div class="card" data-tile="generic" data-title="Expenses by Category">
+            <div class="cardhead">Expenses by Category</div>
+            <div class="catrow"><span class="k">Groceries</span><span class="catbar"><i style="width:82%"></i></span><span class="v" data-pkr="14900" data-dec="0">Rs 14,900</span></div>
+            <div class="catrow"><span class="k">Transport</span><span class="catbar"><i style="width:54%"></i></span><span class="v" data-pkr="9800" data-dec="0">Rs 9,800</span></div>
+            <div class="catrow"><span class="k">Utilities</span><span class="catbar"><i style="width:38%"></i></span><span class="v" data-pkr="6900" data-dec="0">Rs 6,900</span></div>
+          </div>
+          <div class="card" data-tile="generic" data-title="Top Merchants">
+            <div class="cardhead">Top Merchants</div>
+            <div class="kv"><span class="k">Naheed Superstore</span><span class="v" style="color:var(--app-expense)" data-pkr="12400">Rs 12,400.00</span></div>
+            <div class="kv"><span class="k">Careem</span><span class="v" style="color:var(--app-expense)" data-pkr="7150">Rs 7,150.00</span></div>
+          </div>
+        </div>
+
+        <div class="content" data-screen="transactions">
+          <div class="search"><span class="msym" aria-hidden="true">search</span>Search merchant, note or amount</div>
+          <div class="banner"><span class="msym" aria-hidden="true">pending_actions</span>3 transactions need review<span class="spacer"></span><span class="act" data-review="1">Show &rsaquo;</span></div>
+          <div class="dayhead"><span>Today</span><span class="v">-Rs 1,500.00</span></div>
+          <div class="row" data-tile="txn"><span class="dot"><span class="msym" aria-hidden="true">shopping_bag</span></span><span class="mid"><span class="t">Naheed Superstore</span><br><span class="s">Card &middot; Groceries</span></span><span class="amt" style="color:var(--app-expense)">-Rs 1,500.00</span></div>
+          <div class="dayhead"><span>Yesterday</span><span class="v">+Rs 69,570.00</span></div>
+          <div class="row" data-tile="txn"><span class="dot"><span class="msym" aria-hidden="true">payments</span></span><span class="mid"><span class="t">Salary</span><br><span class="s">Online &middot; Income</span></span><span class="amt" style="color:var(--app-income)">+Rs 70,000.00</span></div>
+          <div class="row" data-tile="txn"><span class="dot"><span class="msym" aria-hidden="true">directions_car</span></span><span class="mid"><span class="t">Careem</span><br><span class="s">Cash &middot; Transport</span></span><span class="amt" style="color:var(--app-expense)">-Rs 430.00</span></div>
+          <div class="dayhead"><span>Sun, Oct 11</span><span class="v">-Rs 2,850.00</span></div>
+          <div class="row" data-tile="txn"><span class="dot"><span class="msym" aria-hidden="true">restaurant</span></span><span class="mid"><span class="t">Kababjees</span><br><span class="s">Card &middot; Dining</span></span><span class="amt" style="color:var(--app-expense)">-Rs 2,850.00</span></div>
+        </div>
+
+        <div class="content" data-screen="loans" data-ltab-panel="list">
+          <button class="chipbtn" type="button" data-filters="1">
+            <span class="msym" aria-hidden="true">filter_list</span>Filters<span class="n">All &middot; Open</span><span class="msym" aria-hidden="true">expand_more</span>
+          </button>
+          <div class="banner"><span class="msym" aria-hidden="true">schedule</span>1 loan is past its due date<span class="spacer"></span></div>
+          <div class="loan" data-tile="loan">
+            <div class="ltop"><span class="dot" style="background:color-mix(in srgb, var(--app-income) 16%, transparent)"><span class="msym" aria-hidden="true">south_west</span></span><span class="mid"><span class="t">Ali Raza</span><br><span class="s">Owed to me &middot; 40% repaid</span></span><span class="amtcol"><span class="amt" style="color:var(--app-income)">Rs 18,000</span><span class="amtlbl">left</span></span></div>
+            <div class="bar"><i style="width:40%"></i></div>
+            <div class="lfoot"><span class="s">of Rs 30,000 &middot; Due Oct 20</span><button class="pay" type="button" data-pay="1">Record payment</button></div>
+          </div>
+          <div class="loan" data-tile="loan">
+            <div class="ltop"><span class="dot" style="background:color-mix(in srgb, var(--app-expense) 16%, transparent)"><span class="msym" aria-hidden="true">north_east</span></span><span class="mid"><span class="t">Bilal Ahmed</span><br><span class="s">I owe &middot; 20% repaid</span></span><span class="amtcol"><span class="amt" style="color:var(--app-expense)">Rs 40,000</span><span class="amtlbl">left</span></span></div>
+            <div class="bar"><i style="width:20%;background:var(--app-expense)"></i></div>
+            <div class="lfoot"><span class="s" style="color:var(--app-warn);font-weight:600">of Rs 50,000 &middot; Due Sep 15</span><button class="pay" type="button" data-pay="1">Record payment</button></div>
+          </div>
+          <div class="loan" data-tile="loan">
+            <div class="ltop"><span class="dot" style="background:color-mix(in srgb, var(--app-income) 16%, transparent)"><span class="msym" aria-hidden="true">south_west</span></span><span class="mid"><span class="t">Hamza Iqbal</span><br><span class="s">Owed to me &middot; 0% repaid</span></span><span class="amtcol"><span class="amt" style="color:var(--app-income)">Rs 8,000</span><span class="amtlbl">left</span></span></div>
+            <div class="bar"><i style="width:0%"></i></div>
+            <div class="lfoot"><span class="s">of Rs 8,000 &middot; No due date</span><button class="pay" type="button" data-pay="1">Record payment</button></div>
+          </div>
+        </div>
+
+        <div class="content" data-screen="loans" data-ltab-panel="people" hidden>
+          <div class="card">
+            <div class="person" data-tile="generic" data-title="Bilal Ahmed"><div class="pname">Bilal Ahmed<span class="st">Open</span></div><div class="pl"><span class="k">Owed to me</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div><div class="pl"><span class="k">I owe</span><span class="v" style="color:var(--app-expense)">Rs 40,000.00</span></div><div class="pl"><span class="k">Net</span><span class="v" style="color:var(--app-expense)">-Rs 40,000.00</span></div></div>
+            <div class="person" data-tile="generic" data-title="Ali Raza"><div class="pname">Ali Raza<span class="st">Open</span></div><div class="pl"><span class="k">Owed to me</span><span class="v" style="color:var(--app-income)">Rs 18,000.00</span></div><div class="pl"><span class="k">I owe</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div><div class="pl"><span class="k">Net</span><span class="v" style="color:var(--app-income)">+Rs 18,000.00</span></div></div>
+            <div class="person" data-tile="generic" data-title="Hamza Iqbal"><div class="pname">Hamza Iqbal<span class="st">Open</span></div><div class="pl"><span class="k">Owed to me</span><span class="v" style="color:var(--app-income)">Rs 8,000.00</span></div><div class="pl"><span class="k">I owe</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div><div class="pl"><span class="k">Net</span><span class="v" style="color:var(--app-income)">+Rs 8,000.00</span></div></div>
+            <div class="person" data-tile="generic" data-title="Sana Malik"><div class="pname">Sana Malik<span class="st off">No active loans</span></div><div class="pl"><span class="k">Owed to me</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div><div class="pl"><span class="k">I owe</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div><div class="pl"><span class="k">Net</span><span class="v" style="color:var(--app-faint)">&mdash;</span></div></div>
+            <div class="person total" data-tile="generic" data-title="Everyone"><div class="pname">Total</div><div class="pl"><span class="k">Owed to me</span><span class="v" style="color:var(--app-income)">Rs 26,000.00</span></div><div class="pl"><span class="k">I owe</span><span class="v" style="color:var(--app-expense)">Rs 40,000.00</span></div></div>
+          </div>
+        </div>
+
+        <div class="content" data-screen="settings">
+          <div class="profile"><span class="avatar">S</span><span><span style="font-size:15px;font-weight:600">Sameer Feroz</span><br><span style="font-size:12px;color:var(--app-muted)">sameer.feroz27@gmail.com</span></span></div>
+          <div class="sect">Account</div>
+          <button class="listtile" type="button" data-currency-open="1"><span class="msym" aria-hidden="true">payments</span>Base Currency<span class="spacer"></span><span style="color:var(--app-muted)" data-currency-label>PKR</span><span class="msym" aria-hidden="true">chevron_right</span></button>
+          <div class="sect">App</div>
+          <div class="listtile"><span class="msym" aria-hidden="true">category</span>Categories<span class="spacer"></span><span class="msym" aria-hidden="true">chevron_right</span></div>
+          <div class="listtile"><span class="msym" aria-hidden="true">savings</span>Budgets<span class="spacer"></span><span class="msym" aria-hidden="true">chevron_right</span></div>
+          <div class="sect">Appearance</div>
+          <div class="listtile"><span class="msym" aria-hidden="true">contrast</span>Theme<span class="spacer"></span><span style="color:var(--app-muted)">Auto</span></div>
+          <div class="sect">Advanced</div>
+          <div class="listtile"><span class="msym" aria-hidden="true">language</span>Backend URL<span class="spacer"></span><span style="color:var(--app-muted)">Default</span></div>
+          <button class="listtile danger sep" type="button" data-logout="1"><span class="msym" aria-hidden="true">logout</span>Log out<span class="spacer"></span></button>
+        </div>
+
+        <!-- Sign in. Reachable the way the app reaches it — Log out in Settings — and by the
+             Screen control in the chrome. Signing in hands back to the dashboard. -->
+        <div class="auth" id="pv-auth">
+          <div class="auth-inner">
+            <section class="authhero ain" style="--i:0">
+              <span class="brandmark"><span class="msym" aria-hidden="true">account_balance_wallet</span></span>
+              <div class="wordmark">Vaulta</div>
+              <div class="tagline">Sign in to manage your finances</div>
+            </section>
+
+            <div class="authcard" id="pv-authcard">
+              <div class="afield ain" style="--i:1">
+                <input id="pv-email" type="email" placeholder=" " autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" />
+                <label class="aflabel" for="pv-email">Email</label>
+                <span class="aferr" data-err="email"></span>
+              </div>
+
+              <div class="afield ain" style="--i:2">
+                <input id="pv-password" type="password" placeholder=" " autocomplete="current-password" autocapitalize="none" spellcheck="false" />
+                <label class="aflabel" for="pv-password">Password</label>
+                <button class="aeye" type="button" data-eye="1" aria-label="Show password"><span class="msym" aria-hidden="true">visibility_off</span></button>
+                <span class="aferr" data-err="password"></span>
+              </div>
+
+              <div class="aerrbanner ain" style="--i:3" id="pv-autherr" role="alert" hidden>
+                <span class="msym" aria-hidden="true">error_outline</span><span id="pv-autherrtext"></span>
+              </div>
+
+              <button class="aforgot ain" style="--i:4" type="button" data-forgot="1">Forgot password?</button>
+
+              <button class="asubmit ain" style="--i:5" type="button" id="pv-signin">
+                <span class="alabel">Sign in</span><span class="aspin" aria-hidden="true"></span>
+              </button>
+
+              <button class="acreate ain" style="--i:6" type="button" data-register="1">Don't have an account? Create one</button>
+            </div>
+
+            <label class="akeep ain" style="--i:7"><input type="checkbox" checked /><span>Keep me signed in</span></label>
+
+            <p class="authfoot ain" style="--i:8">Vaulta never stores a full card number or your bank login &mdash; only the last four digits.</p>
+          </div>
+        </div>
+
+        <nav class="navbar" aria-label="Main">
+          <div class="navline" id="pv-navline" aria-hidden="true"></div>
+          <button class="dest" type="button" data-dest="dashboard" aria-selected="true">
+            <span class="ic"><span class="msym" aria-hidden="true">dashboard</span></span>
+            <span class="lbl">Dashboard</span>
+          </button>
+          <button class="dest" type="button" data-dest="transactions" aria-selected="false">
+            <span class="ic"><span class="msym" aria-hidden="true">receipt_long</span><span class="badge">3</span></span>
+            <span class="lbl">Activity</span>
+          </button>
+          <button class="dest" type="button" data-dest="loans" aria-selected="false">
+            <span class="ic"><span class="msym" aria-hidden="true">handshake</span><span class="badge">1</span></span>
+            <span class="lbl">Loans</span>
+          </button>
+          <button class="dest" type="button" data-dest="settings" aria-selected="false">
+            <span class="ic"><span class="msym" aria-hidden="true">settings</span></span>
+            <span class="lbl">Settings</span>
+          </button>
+        </nav>
+
+        <div class="scrim" id="pv-scrim"></div>
+        <div class="sheet" data-sheet-kind="reset" role="dialog" aria-label="Reset password">
+          <div class="grab"></div>
+          <h4>Reset password</h4>
+          <div class="sub">We'll email a 6-digit code to <span id="pv-resetemail">your address</span>.</div>
+          <button class="btn-demo" type="button" data-close="1">Send reset code</button>
+          <div class="foot">You stay signed out until the code is confirmed.</div>
+        </div>
+        <div class="sheet" data-sheet-kind="register" role="dialog" aria-label="Create account">
+          <div class="grab"></div>
+          <h4>Create account</h4>
+          <div class="sub">A screen of its own in the app &mdash; name, email, password, then you're in. It reuses this layout rather than inventing a second one.</div>
+          <button class="btn-demo" type="button" data-close="1">Got it</button>
+        </div>
+        <div class="sheet" data-sheet-kind="payment" role="dialog" aria-label="Record payment">
+          <div class="grab"></div>
+          <h4>Record payment</h4>
+          <div class="sub">Ali Raza &middot; Rs 18,000.00 left of Rs 30,000.00</div>
+          <div class="field"><div class="fl">Amount</div>Rs 18,000.00</div>
+          <div class="field"><div class="fl">Payment date</div><span data-today>Today</span></div>
+          <div class="info">Ali Raza borrowed Rs 30,000 on Sep 1 and has repaid Rs 12,000, so Rs 18,000 is still left. Anything over that counts as a gift, tip or refund.</div>
+          <div class="swt"><span><span class="st">Also record in my transactions</span><br><span class="ss">Keeps the cash movement in your ledger.</span></span><span class="spacer"></span><span class="track"><i></i></span></div>
+          <button class="btn-demo" type="button" data-close="1">Record payment</button>
+          <div class="foot">Loans are tracked in PKR</div>
+        </div>
+        <div class="sheet" data-sheet-kind="currency" role="dialog" aria-label="Base currency">
+          <div class="grab"></div>
+          <h4>Base currency</h4>
+          <div class="sub">Every dashboard figure is converted into this currency.</div>
+          <div class="curlist">
+            <button class="listtile cur" type="button" data-cur="PKR" aria-selected="true"><span class="csym">Rs</span><span class="cname">Pakistani Rupee</span><span class="spacer"></span><span class="code">PKR</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="USD" aria-selected="false"><span class="csym">$</span><span class="cname">US Dollar</span><span class="spacer"></span><span class="code">USD</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="EUR" aria-selected="false"><span class="csym">&euro;</span><span class="cname">Euro</span><span class="spacer"></span><span class="code">EUR</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="GBP" aria-selected="false"><span class="csym">&pound;</span><span class="cname">British Pound</span><span class="spacer"></span><span class="code">GBP</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="AED" aria-selected="false"><span class="csym">&#1583;.&#1573;</span><span class="cname">UAE Dirham</span><span class="spacer"></span><span class="code">AED</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="INR" aria-selected="false"><span class="csym">&#8377;</span><span class="cname">Indian Rupee</span><span class="spacer"></span><span class="code">INR</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="SAR" aria-selected="false"><span class="csym">&#65020;</span><span class="cname">Saudi Riyal</span><span class="spacer"></span><span class="code">SAR</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="CAD" aria-selected="false"><span class="csym">C$</span><span class="cname">Canadian Dollar</span><span class="spacer"></span><span class="code">CAD</span><span class="msym check" aria-hidden="true">check</span></button>
+            <button class="listtile cur" type="button" data-cur="AUD" aria-selected="false"><span class="csym">A$</span><span class="cname">Australian Dollar</span><span class="spacer"></span><span class="code">AUD</span><span class="msym check" aria-hidden="true">check</span></button>
+          </div>
+          <div class="foot">The dashboard converts; the Loans tab itself stays in PKR.</div>
+        </div>
+        <div class="sheet" data-sheet-kind="review" role="dialog" aria-label="Needs review">
+          <div class="grab"></div>
+          <h4>Needs review</h4>
+          <div class="sub">The direction could not be settled, so this is held out of your dashboard totals until you decide.</div>
+          <div class="reviewrow"><span class="msym" aria-hidden="true">shopping_bag</span><span class="t">Naheed Superstore</span><span style="color:var(--app-expense);font-weight:700">-Rs 1,500.00</span></div>
+          <div class="sheet-actions" style="margin-top:14px">
+            <button class="btn-ghost" type="button" data-close="1">Change direction</button>
+            <button class="btn-demo" type="button" data-close="1">Mark as reviewed</button>
+          </div>
+          <div class="foot">A quick decision like this stays a sheet &mdash; it never takes over the screen.</div>
+        </div>
+        <div class="sheet" data-sheet-kind="filters" role="dialog" aria-label="Filters">
+          <div class="grab"></div>
+          <h4>Filters</h4>
+          <div class="sub">Everything that narrows the list, in one place</div>
+          <div class="fgrp"><span class="flab">Person</span><div class="search" style="padding:10px 14px;align-self:stretch"><span class="msym" aria-hidden="true">search</span>Search by name</div></div>
+          <div class="fgrp"><span class="flab">Direction</span><span class="seg"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Owed to me</button><button type="button" aria-pressed="false">I owe</button></span></div>
+          <div class="fgrp"><span class="flab">Status</span><span class="seg"><button type="button" aria-pressed="true">Any</button><button type="button" aria-pressed="false">Open</button><button type="button" aria-pressed="false">Settled</button></span></div>
+          <div class="fgrp"><span class="flab">Sort by</span><span class="seg"><button type="button" aria-pressed="true">Due date</button><button type="button" aria-pressed="false">Outstanding</button><button type="button" aria-pressed="false">Newest</button></span></div>
+          <div class="sheet-actions">
+            <button class="btn-ghost" type="button" data-close="1">Reset</button>
+            <button class="btn-demo" type="button" data-close="1">Apply</button>
+          </div>
+        </div>
+
+        <!-- Tile to detail. One clipped surface grows from the tapped tile's rectangle; the
+             content inside is clipped by the same shape and fades in only after the grow is
+             under way. Values are mirrored from the tile that was tapped, so the detail can
+             never disagree with the card it came from. -->
+        <div class="detail" id="pv-detail">
+          <div class="dcontent" data-detail-kind="loan">
+            <div class="dbar">
+              <button class="backbtn" type="button" data-detail-close="1" aria-label="Back"><span class="msym" aria-hidden="true">arrow_back</span></button>
+              <span class="dtitle" data-slot="title">Loan</span>
+            </div>
+            <div class="dhead">
+              <div class="dhero">
+                <div class="damt" data-slot="amount">Rs 0</div>
+                <div class="dsub"><span data-slot="amlbl">left</span> &middot; <span data-slot="sub"></span></div>
+                <div class="bar"><i data-slot="bar" style="width:0%"></i></div>
+              </div>
+            </div>
+            <div class="dbody">
+              <div class="drows">
+                <div class="drow"><span class="k">Original amount</span><span class="v" data-slot="total">&mdash;</span></div>
+                <div class="drow"><span class="k">Already repaid</span><span class="v" data-slot="repaid">&mdash;</span></div>
+                <div class="drow"><span class="k">Due</span><span class="v" data-slot="due">&mdash;</span></div>
+              </div>
+              <div class="dactions">
+                <button class="dbtn primary" type="button" data-pay="1">Record payment</button>
+                <button class="dbtn ghost" type="button" data-detail-close="1">Edit loan</button>
+                <button class="dbtn danger" type="button" data-detail-close="1">Remove loan</button>
+              </div>
+              <div class="dnote">The surface kept the tile's own corner radius and colour through the first half of the grow, which is what keeps the tap origin legible; the content only faded in once the container was already moving.</div>
+            </div>
+          </div>
+          <div class="dcontent" data-detail-kind="txn">
+            <div class="dbar">
+              <button class="backbtn" type="button" data-detail-close="1" aria-label="Back"><span class="msym" aria-hidden="true">arrow_back</span></button>
+              <span class="dtitle" data-slot="title">Transaction</span>
+            </div>
+            <div class="dhead">
+              <div class="dhero">
+                <div class="dicon" data-slot="iconwrap"><span class="msym" aria-hidden="true" data-slot="icon">receipt_long</span></div>
+                <div class="damt" data-slot="amount">Rs 0</div>
+                <div class="dsub" data-slot="sub"></div>
+              </div>
+            </div>
+            <div class="dbody">
+              <div class="drows">
+                <div class="drow"><span class="k">Date</span><span class="v" data-slot="date">&mdash;</span></div>
+                <div class="drow"><span class="k">Source</span><span class="v" data-slot="source">&mdash;</span></div>
+                <div class="drow"><span class="k">Category</span><span class="v" data-slot="category">&mdash;</span></div>
+              </div>
+              <div class="dactions">
+                <button class="dbtn ghost" type="button" data-detail-close="1">Edit</button>
+                <button class="dbtn danger" type="button" data-detail-close="1">Delete</button>
+              </div>
+            </div>
+          </div>
+          <!-- Every remaining tile: the rows are mirrored from the tile that was tapped, so
+               a dashboard card or a person row grows into a readable breakdown of itself
+               without a second copy of the figures to keep in step. -->
+          <div class="dcontent" data-detail-kind="generic">
+            <div class="dbar">
+              <button class="backbtn" type="button" data-detail-close="1" aria-label="Back"><span class="msym" aria-hidden="true">arrow_back</span></button>
+              <span class="dtitle" data-slot="title">Detail</span>
+            </div>
+            <div class="dhead">
+              <div class="dhero" hidden>
+                <div class="damt" data-slot="amount"></div>
+              </div>
+            </div>
+            <div class="dbody">
+              <div class="drows"></div>
+              <div class="dactions">
+                <button class="dbtn primary" type="button" data-slot="goto" data-see-all="1" hidden>See all</button>
+                <button class="dbtn ghost" type="button" data-detail-close="1">Done</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pv-note">
+      <b>Try it:</b> choose the bottom nav style &mdash; Material 2 as it is today, Material 3's tonal pill, or a <b>flat bar</b> where the whole bar stays plain and the selected destination is marked by a primary line across its top edge. Tap the four destinations; on Loans use the single <b>Filters</b> control and the <b>Record payment</b> action on any card; on Transactions search or scan the day groups; in Settings the backend URL now sits under <b>Advanced</b>, <b>Base Currency</b> opens a picker, and Log out is in the danger colour.
+      <br><b>Base currency:</b> the picker offers the nine currencies the app supports, PKR first and selected by default. Choosing one <i>converts</i> the dashboard &mdash; the three tiles, the loans card, the category breakdown and top merchants all re-render in the new currency rather than just swapping the symbol. The Loans tab itself stays in PKR, because loans are tracked per person rather than converted at rest.
+      <br><b>This round:</b> the second tab is labelled <b>Activity</b> so it fits its slot at any phone width &mdash; the screen keeps its own <i>Transactions</i> title, so say the word if you would rather rename that too. Day headings are now computed from the real date, so <b>Today</b> and <b>Yesterday</b> only appear when they are genuinely those days and anything older is named outright (&ldquo;Sun, Oct 11&rdquo;). Every card carries a hairline edge in both looks, which is what stops the Loans, Expenses by Category and Top Merchants cards reading as washed out. Log out sits behind its own divider in the danger red, with room to scroll clear of the nav. And every lending figure now leads with what is <b>left</b> &mdash; Ali Raza shows <b>Rs 18,000 left</b> with the original Rs 30,000 demoted to the line beneath, and the By-person totals and the payment sheet agree with it. The scrollable tab bodies no longer show the browser's own scrollbar: it is a grey thumb on a white track in light and a mid-grey thumb on the app's background in dark, so it reads as part of the screen &mdash; open Settings and scroll to see it. The callout in the Record payment sheet was tied to the <i>browser's</i> colour scheme rather than the phone's, which is why its text could come out light blue on white and all but disappear; it now tracks the phone's own theme.
+      <br><b>Transitions:</b> every tile opens the same way &mdash; the income / expense / balance tiles, the dashboard cards, a By person row, a loan card and a transaction row all grow into their own detail out of the tile you touched, with the rows inside mirrored from that tile so the two can never disagree. The surface keeps its corner radius and colour through the first half of the grow, the content fades in 110&nbsp;ms later over 150&nbsp;ms, and back collapses it in 300&nbsp;ms with the content leaving first. Sheets slide up from the bottom edge over a fading scrim and leave a little quicker than they arrive, so <b>Record payment</b>, the loan filters, the currency picker and the review prompt all animate instead of appearing. Switching tabs slides the incoming screen in from the side the tab order came from while the indicator line glides across, and the list follows in 40&nbsp;ms steps, six items at most. Flip <b>Motion</b> to Reduced for the fallback: no slide, no stagger, no growth, just a short fade &mdash; which is also what the prototype does on its own if your system already asks for reduced motion.
+      <br><b>Sign in:</b> reachable from the chrome's <b>Screen</b> control or, the way the app reaches it, from <b>Log out</b> in Settings. It is pre-auth, so it replaces the whole tab shell rather than becoming a fifth destination. Three layouts to judge under <b>Sign-in layout</b> &mdash; Plain, Hero and Card. There is deliberately no "continue as" shortcut and no remembered account, so the form is the only place an account is ever named. Try signing in with nothing filled: the form shakes and reports each field inline, with a banner, rather than firing a snackbar over the top. With details that pass, the button shows its own spinner and then hands back to the dashboard. The two links open sheets, because a reset and a "here is where that lives" note are quick decisions, not screens.
+      <br><b>Code-only, not visible here:</b> predictive back on Android 14+, edge-to-edge system bars, haptic feedback on nav taps, the tablet NavigationRail that replaces the bottom bar above 600&nbsp;dp, and the Compose build of these transitions (<code>SharedTransitionLayout</code> for tile to detail, <code>AnimatedContent</code> with a shared-axis slide for tabs).
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('m3-nav-prototype');
+      if (!root) return;
+      var phone = document.getElementById('pv-phone');
+      var scrim = document.getElementById('pv-scrim');
+
+      var screens = Array.prototype.slice.call(root.querySelectorAll('[data-screen]'));
+
+      // Motion starts from the operating system's reduce-motion preference; the chrome
+      // toggle overrides it so both paths can be judged without changing that setting.
+      var prefersReduced = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var state = { nav: 'm2', look: 'current', tabs: 'primary', theme: 'light', screen: 'dashboard', loanTab: 'list', motion: prefersReduced ? 'reduced' : 'full', view: 'app', auth: 'plain' };
+
+      // ---- base currency ---------------------------------------------------------
+      // The app stores rates as "1 unit of X = N baseCurrency", so these are PKR per unit.
+      // Every dashboard figure carries the PKR mock value it was written from, and is
+      // converted here rather than merely relabelled — a new symbol over an unconverted
+      // number would be a lie, and that is the bug this is meant to avoid.
+      var CURRENCIES = [
+        { code: 'PKR', sym: 'Rs', perPkr: 1 },
+        { code: 'USD', sym: '$', perPkr: 280 },
+        { code: 'EUR', sym: '\u20ac', perPkr: 300 },
+        { code: 'GBP', sym: '\u00a3', perPkr: 350 },
+        { code: 'AED', sym: '\u062f.\u0625', perPkr: 76 },
+        { code: 'INR', sym: '\u20b9', perPkr: 3.3 },
+        { code: 'SAR', sym: '\ufdfc', perPkr: 75 },
+        { code: 'CAD', sym: 'C$', perPkr: 200 },
+        { code: 'AUD', sym: 'A$', perPkr: 185 }
+      ];
+      var currency = 'PKR';
+
+      function currentCurrency() {
+        for (var i = 0; i < CURRENCIES.length; i++) {
+          if (CURRENCIES[i].code === currency) return CURRENCIES[i];
+        }
+        return CURRENCIES[0]; // PKR is the base every mock figure is written in
+      }
+
+      function money(pkr, decimals) {
+        var c = currentCurrency();
+        return c.sym + ' ' + (pkr / c.perPkr).toLocaleString('en-US', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        });
+      }
+
+      function paintMoney() {
+        Array.prototype.forEach.call(root.querySelectorAll('[data-pkr]'), function (el) {
+          var decimals = el.hasAttribute('data-dec') ? Number(el.getAttribute('data-dec')) : 2;
+          el.textContent = money(parseFloat(el.getAttribute('data-pkr')), decimals);
+        });
+        Array.prototype.forEach.call(root.querySelectorAll('[data-currency-label]'), function (el) {
+          el.textContent = currency;
+        });
+        Array.prototype.forEach.call(root.querySelectorAll('[data-cur]'), function (el) {
+          el.setAttribute('aria-selected', el.getAttribute('data-cur') === currency ? 'true' : 'false');
+        });
+      }
+
+      // ---- motion: tab slide, list stagger, gliding indicator, tile to detail ----------
+      var TAB_ORDER = ['dashboard', 'transactions', 'loans', 'settings'];
+      var navLinePlaced = false;
+      var detailTimers = [];
+      var openedFrom = null;
+      var openedColor = '';
+      var openedRadius = '12px';
+
+      // One line that glides between destinations. The first placement must not animate,
+      // or the line would slide in from the left edge on load.
+      function placeNavLine(animate) {
+        var line = root.querySelector('.navline');
+        var sel = root.querySelector('.dest[aria-selected="true"]');
+        if (!line || !sel) return;
+        if (!animate) line.classList.add('no-anim');
+        line.style.width = sel.offsetWidth + 'px';
+        line.style.transform = 'translateX(' + sel.offsetLeft + 'px)';
+        if (!animate) {
+          void line.offsetWidth;
+          line.classList.remove('no-anim');
+        }
+      }
+
+      function clearMotionClasses() {
+        Array.prototype.forEach.call(root.querySelectorAll('.content'), function (el) {
+          el.classList.remove('screen-forward', 'screen-back', 'screen-fade');
+        });
+        Array.prototype.forEach.call(root.querySelectorAll('.stagger'), function (el) {
+          el.classList.remove('stagger');
+          el.style.animationDelay = '';
+        });
+      }
+
+      // The incoming screen slides from the side the tab order came from, and its list
+      // follows it in 40ms apart — nothing past the sixth item waits its turn.
+      // [prev] is passed in rather than read from state, which has already moved on.
+      function playScreen(next, prev) {
+        var from = TAB_ORDER.indexOf(prev);
+        var to = TAB_ORDER.indexOf(next);
+        var cls = state.motion === 'reduced'
+          ? 'screen-fade'
+          : (to > from ? 'screen-forward' : 'screen-back');
+
+        clearMotionClasses();
+        void phone.offsetWidth; // commit the cleared state so the animation can restart
+
+        Array.prototype.forEach.call(root.querySelectorAll('.content[data-screen="' + next + '"]'), function (el) {
+          if (el.hasAttribute('hidden')) return;
+          el.classList.add(cls);
+          Array.prototype.forEach.call(el.querySelectorAll('.loan, .row'), function (item, i) {
+            if (i >= 6 || state.motion === 'reduced') return;
+            item.classList.add('stagger');
+            item.style.animationDelay = (i * 40) + 'ms';
+          });
+        });
+      }
+
+      // ---- tile to detail ---------------------------------------------------------------
+      function statusBarHeight() {
+        var bar = root.querySelector('.status');
+        return bar ? bar.getBoundingClientRect().height : 0;
+      }
+
+      function rectInPhone(el) {
+        var p = phone.getBoundingClientRect();
+        var b = el.getBoundingClientRect();
+        return { left: b.left - p.left, top: b.top - p.top, width: b.width, height: b.height };
+      }
+
+      function detailTarget() {
+        var statusH = statusBarHeight();
+        return { left: 0, top: statusH, width: phone.clientWidth, height: phone.clientHeight - statusH };
+      }
+
+      // The clip is expressed relative to the detail layer's own box, so shrinking the
+      // target by these insets gives back exactly the tile's rectangle — which is why the
+      // surface and the content it clips can never drift apart mid-flight.
+      function clipFor(from, target, radius) {
+        var top = Math.max(from.top - target.top, 0);
+        var left = Math.max(from.left - target.left, 0);
+        var right = Math.max(target.width - left - from.width, 0);
+        var bottom = Math.max(target.height - top - from.height, 0);
+        return 'inset(' + top + 'px ' + right + 'px ' + bottom + 'px ' + left + 'px round ' + radius + ')';
+      }
+
+      function digits(text) {
+        var n = parseFloat(String(text).replace(/[^0-9.]/g, ''));
+        return isNaN(n) ? 0 : n;
+      }
+
+      function pkr(n) {
+        return 'Rs ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function setSlot(content, name, value) {
+        var el = content.querySelector('[data-slot="' + name + '"]');
+        if (el && value != null) el.textContent = value;
+      }
+
+      // Every figure is mirrored from the tile that was tapped, so the detail cannot
+      // disagree with the card it grew out of.
+      function fillDetail(tile, content) {
+        var kind = content.getAttribute('data-detail-kind');
+        if (kind === 'loan') {
+          var amount = tile.querySelector('.ltop .amt');
+          var parts = tile.querySelector('.lfoot .s').textContent.split(' \u00b7 ');
+          var totalText = parts[0] || '';
+          var left = digits(amount.textContent);
+          setSlot(content, 'title', tile.querySelector('.ltop .t').textContent);
+          setSlot(content, 'amount', amount.textContent);
+          setSlot(content, 'amlbl', tile.querySelector('.ltop .amtlbl').textContent);
+          setSlot(content, 'sub', tile.querySelector('.ltop .s').textContent);
+          setSlot(content, 'total', totalText.replace(/^of\s*/i, ''));
+          setSlot(content, 'repaid', pkr(Math.max(digits(totalText) - left, 0)));
+          setSlot(content, 'due', (parts[1] || '').replace(/^Due\s*/i, '') || 'No due date');
+          content.querySelector('[data-slot="amount"]').style.color = getComputedStyle(amount).color;
+          var srcBar = tile.querySelector('.bar i');
+          var bar = content.querySelector('[data-slot="bar"]');
+          bar.style.width = srcBar.style.width;
+          bar.style.background = getComputedStyle(srcBar).backgroundColor;
+        } else if (kind === 'txn') {
+          var amt = tile.querySelector('.amt');
+          var mid = tile.querySelector('.mid');
+          var sub = mid.querySelector('.s').textContent;
+          var halves = sub.split(' \u00b7 ');
+          setSlot(content, 'title', mid.querySelector('.t').textContent);
+          setSlot(content, 'sub', sub);
+          setSlot(content, 'amount', amt.textContent);
+          content.querySelector('[data-slot="amount"]').style.color = getComputedStyle(amt).color;
+          setSlot(content, 'icon', tile.querySelector('.dot .msym').textContent.trim());
+          content.querySelector('[data-slot="iconwrap"]').style.background =
+            getComputedStyle(tile.querySelector('.dot')).backgroundColor;
+          setSlot(content, 'source', halves[0] || '\u2014');
+          setSlot(content, 'category', halves[1] || '\u2014');
+          // The day heading above the row already holds the right label for this date.
+          var head = tile.previousElementSibling;
+          while (head && !head.classList.contains('dayhead')) head = head.previousElementSibling;
+          setSlot(content, 'date', head ? head.querySelector('span').textContent : '\u2014');
+        } else {
+          fillGeneric(tile, content);
+        }
+      }
+
+      // Rows are collected from the tapped tile's own label/value pairs — .kv, .catrow and
+      // .pl between them cover the dashboard cards and the By person rows — so the detail is
+      // always a magnification of what the user was already looking at, never a parallel set
+      // of figures that could drift out of step with it.
+      function fillGeneric(tile, content) {
+        var host = content.querySelector('.drows');
+        host.innerHTML = '';
+        Array.prototype.forEach.call(tile.querySelectorAll('.kv, .catrow, .pl'), function (row) {
+          var k = row.querySelector('.k');
+          var v = row.querySelector('.v');
+          if (!k || !v) return;
+          var line = document.createElement('div');
+          var label = document.createElement('span');
+          var value = document.createElement('span');
+          line.className = 'drow';
+          label.className = 'k';
+          label.textContent = k.textContent.trim();
+          value.className = 'v';
+          value.textContent = v.textContent.trim();
+          value.style.color = getComputedStyle(v).color;
+          line.appendChild(label);
+          line.appendChild(value);
+          host.appendChild(line);
+        });
+
+        var titleEl = content.querySelector('[data-slot="title"]');
+        var title = tile.getAttribute('data-title');
+        if (!title) {
+          var nameSource = tile.querySelector('.pname') || tile.querySelector('.cardhead') || tile.querySelector('.k');
+          title = nameSource ? nameSource.textContent.trim() : 'Detail';
+        }
+        titleEl.textContent = title;
+
+        var heroWrap = content.querySelector('.dhero');
+        var heroEl = content.querySelector('[data-slot="amount"]');
+        var heroSource = tile.getAttribute('data-hero')
+          ? tile.querySelector(tile.getAttribute('data-hero'))
+          : null;
+        if (heroSource) {
+          heroEl.textContent = heroSource.textContent.trim();
+          heroEl.style.color = getComputedStyle(heroSource).color;
+          heroWrap.removeAttribute('hidden');
+        } else {
+          heroEl.textContent = '';
+          heroWrap.setAttribute('hidden', '');
+        }
+
+        var gotoBtn = content.querySelector('[data-slot="goto"]');
+        var target = tile.getAttribute('data-goto');
+        if (target) {
+          gotoBtn.textContent = tile.getAttribute('data-goto-label') || 'See all';
+          gotoBtn.setAttribute('data-goto', target);
+          gotoBtn.removeAttribute('hidden');
+        } else {
+          gotoBtn.removeAttribute('data-goto');
+          gotoBtn.setAttribute('hidden', '');
+        }
+      }
+
+      // A tile can be transparent — the By person rows sit on their card's surface — so the
+      // colour comes from the nearest ancestor that actually paints one.
+      function effectiveBackground(el) {
+        var node = el;
+        while (node && node !== root) {
+          var bg = getComputedStyle(node).backgroundColor;
+          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
+          node = node.parentElement;
+        }
+        return getComputedStyle(phone).backgroundColor;
+      }
+
+      // One place that moves the sheets, so the state attribute and the class the slide
+      // rides on can never disagree.
+      function setSheet(kind) {
+        var next = kind || 'closed';
+        Array.prototype.forEach.call(root.querySelectorAll('.sheet'), function (s) {
+          s.classList.toggle('sheet-open', s.getAttribute('data-sheet-kind') === next);
+        });
+        phone.setAttribute('data-sheet', next);
+      }
+
+      function clearDetailTimers() {
+        detailTimers.forEach(function (t) { clearTimeout(t); });
+        detailTimers = [];
+      }
+
+      function openDetail(tile, kind) {
+        var detail = root.querySelector('#pv-detail');
+        var content = detail.querySelector('.dcontent[data-detail-kind="' + kind + '"]');
+        if (!detail || !content) return;
+
+        clearDetailTimers();
+        var target = detailTarget();
+        var from = rectInPhone(tile);
+        var tileStyle = getComputedStyle(tile);
+
+        openedFrom = from;
+        openedColor = effectiveBackground(tile);
+        openedRadius = tileStyle.borderRadius;
+
+        Array.prototype.forEach.call(detail.querySelectorAll('.dcontent'), function (el) {
+          el.classList.remove('active');
+        });
+        fillDetail(tile, content);
+        content.classList.add('active');
+
+        // The attribute gates the content fade-ins, so it has to pass through "closed" for
+        // them to run again when one detail follows another. Start geometry is written
+        // before visibility, so the layer is already clipped to the tile when it appears
+        // and can never flash at full size.
+        phone.setAttribute('data-detail', 'closed');
+        void phone.offsetWidth;
+
+        detail.style.transition = 'none';
+        detail.style.top = target.top + 'px';
+        detail.style.background = openedColor;
+        detail.style.clipPath = clipFor(from, target, openedRadius);
+        phone.setAttribute('data-detail', 'open');
+        void detail.offsetWidth;
+
+        if (state.motion === 'reduced') {
+          detail.style.clipPath = clipFor(target, target, '0px');
+          detail.style.background = 'var(--app-bg)';
+        } else {
+          detail.style.transition =
+            'clip-path 320ms var(--ease-emph), background-color 240ms var(--ease-std) 80ms';
+          detail.style.clipPath = clipFor(target, target, '0px');
+          detail.style.background = 'var(--app-bg)';
+        }
+      }
+
+      function hideDetailNow() {
+        clearDetailTimers();
+        var detail = root.querySelector('#pv-detail');
+        phone.setAttribute('data-detail', 'closed');
+        detail.style.transition = 'none';
+        detail.style.clipPath = '';
+        Array.prototype.forEach.call(detail.querySelectorAll('.dcontent'), function (el) {
+          el.classList.remove('active');
+        });
+      }
+
+      function closeDetail() {
+        if (phone.getAttribute('data-detail') !== 'open') return;
+        var detail = root.querySelector('#pv-detail');
+        var target = detailTarget();
+        // Back runs slightly faster than the way in.
+        var duration = state.motion === 'reduced' ? 150 : 300;
+
+        phone.setAttribute('data-detail', 'closing');
+        detail.style.transition = 'none';
+        void detail.offsetWidth;
+        if (state.motion === 'reduced') {
+          detail.style.transition = 'none';
+        } else {
+          detail.style.transition =
+            'clip-path ' + duration + 'ms var(--ease-emph), background-color 200ms var(--ease-std)';
+        }
+        detail.style.clipPath = openedFrom ? clipFor(openedFrom, target, openedRadius) : clipFor(target, target, '0px');
+        detail.style.background = openedColor;
+
+        clearDetailTimers();
+        detailTimers.push(setTimeout(hideDetailNow, duration + 20));
+      }
+
+      // ---- sign in ------------------------------------------------------------------
+      // Pre-auth, so it is a view of the phone rather than a fifth destination. Validation
+      // mirrors the app's own rules, and a successful sign-in hands back to the dashboard.
+      function authEl(id) { return root.querySelector('#' + id); }
+
+      function setAuthError(message) {
+        var banner = authEl('pv-autherr');
+        if (message) {
+          authEl('pv-autherrtext').textContent = message;
+          banner.removeAttribute('hidden');
+        } else {
+          banner.setAttribute('hidden', '');
+        }
+      }
+
+      function setFieldError(name, message) {
+        var err = root.querySelector('[data-err="' + name + '"]');
+        if (!err) return;
+        var field = err.closest('.afield');
+        err.textContent = message || '';
+        field.classList.toggle('bad', !!message);
+      }
+
+      function clearAuthErrors() {
+        setAuthError(null);
+        setFieldError('email', null);
+        setFieldError('password', null);
+        // The shake is a one-shot animation, so its class has to be cleared or the element
+        // keeps claiming it is shaking long after it stopped.
+        authEl('pv-authcard').classList.remove('shake');
+      }
+
+      function setAuthLoading(loading) {
+        var btn = authEl('pv-signin');
+        if (loading) {
+          btn.setAttribute('data-loading', '1');
+          btn.setAttribute('aria-busy', 'true');
+        } else {
+          btn.removeAttribute('data-loading');
+          btn.removeAttribute('aria-busy');
+        }
+      }
+
+      function shakeAuthCard() {
+        var card = authEl('pv-authcard');
+        card.classList.remove('shake');
+        void card.offsetWidth; // restart the animation when it is already running
+        card.classList.add('shake');
+      }
+
+      function showAuthView(show) {
+        state.view = show ? 'auth' : 'app';
+        paint();
+        if (show) {
+          clearAuthErrors();
+          setAuthLoading(false);
+          authEl('pv-auth').classList.remove('auth-out');
+        }
+      }
+
+      function signIn() {
+        var email = authEl('pv-email').value.trim();
+        var password = authEl('pv-password').value;
+        clearAuthErrors();
+        // Drop the keyboard as soon as the user commits, so the spinner and any errors are
+        // readable rather than hidden behind it.
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+        var bad = false;
+        if (!email) {
+          setFieldError('email', 'Email is required');
+          bad = true;
+        } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+          setFieldError('email', 'Enter a valid email address');
+          bad = true;
+        }
+        if (!password) {
+          setFieldError('password', 'Password is required');
+          bad = true;
+        } else if (password.length < 6) {
+          setFieldError('password', 'Password must be at least 6 characters');
+          bad = true;
+        }
+
+        if (bad) {
+          setAuthError('Check the highlighted fields and try again.');
+          shakeAuthCard();
+          return;
+        }
+
+        var reduced = state.motion === 'reduced';
+        setAuthLoading(true);
+        window.setTimeout(function () {
+          setAuthLoading(false);
+          var layer = authEl('pv-auth');
+          layer.classList.add('auth-out');
+          window.setTimeout(function () {
+            layer.classList.remove('auth-out');
+            state.view = 'app';
+            state.screen = 'dashboard';
+            paint();
+            // "auth" is not in the tab order, so this reads as arriving forward.
+            playScreen('dashboard', 'auth');
+          }, reduced ? 150 : 220);
+        }, reduced ? 160 : 900);
+      }
+
+      function paint() {
+        phone.setAttribute('data-nav', state.nav);
+        phone.setAttribute('data-look', state.look);
+        phone.setAttribute('data-tabs', state.tabs);
+        phone.setAttribute('data-theme', state.theme);
+        phone.setAttribute('data-motion', state.motion);
+        phone.setAttribute('data-view', state.view);
+        phone.setAttribute('data-auth', state.auth);
+
+        // Signing out must not leave a detail screen or a sheet stranded over the form.
+        if (state.view === 'auth' && phone.getAttribute('data-detail') !== 'closed') {
+          hideDetailNow();
+        }
+
+        Array.prototype.forEach.call(root.querySelectorAll('[data-ctl]'), function (btn) {
+          var on = state[btn.getAttribute('data-ctl')] === btn.getAttribute('data-val');
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+
+        Array.prototype.forEach.call(screens, function (el) {
+          var match = el.getAttribute('data-screen') === state.screen;
+          if (el.hasAttribute('data-ltab-panel')) {
+            match = match && el.getAttribute('data-ltab-panel') === state.loanTab;
+          }
+          if (match) { el.removeAttribute('hidden'); } else { el.setAttribute('hidden', ''); }
+        });
+
+        Array.prototype.forEach.call(root.querySelectorAll('.dest'), function (dest) {
+          // Icons stay outlined in both states; the tonal pill marks the selection.
+          dest.setAttribute('aria-selected', dest.getAttribute('data-dest') === state.screen ? 'true' : 'false');
+        });
+
+        Array.prototype.forEach.call(root.querySelectorAll('[data-ltab]'), function (tab) {
+          tab.setAttribute('aria-selected', tab.getAttribute('data-ltab') === state.loanTab ? 'true' : 'false');
+        });
+
+        paintMoney();
+        placeNavLine(navLinePlaced);
+        navLinePlaced = true;
+      }
+
+      root.addEventListener('click', function (event) {
+        var control = event.target.closest('[data-ctl]');
+        if (control) {
+          state[control.getAttribute('data-ctl')] = control.getAttribute('data-val');
+          paint();
+          return;
+        }
+        var dest = event.target.closest('.dest');
+        if (dest) {
+          var next = dest.getAttribute('data-dest');
+          var previous = state.screen;
+          if (next !== previous) {
+            // A detail collapse and a tab change animating at once reads as one muddled
+            // double movement, so an open detail is dismissed outright first.
+            if (phone.getAttribute('data-detail') !== 'closed') hideDetailNow();
+            state.screen = next;
+            paint();
+            playScreen(next, previous);
+          }
+          return;
+        }
+        var loanTab = event.target.closest('[data-ltab]');
+        if (loanTab) {
+          state.loanTab = loanTab.getAttribute('data-ltab');
+          paint();
+          return;
+        }
+        // Record payment now sits on each loan card.
+        if (event.target.closest('[data-pay]')) {
+          setSheet('payment');
+          return;
+        }
+        // One control for every loan filter.
+        if (event.target.closest('[data-filters]')) {
+          setSheet('filters');
+          return;
+        }
+        // Base currency is chosen in Settings; picking one re-converts the dashboard.
+        if (event.target.closest('[data-currency-open]')) {
+          setSheet('currency');
+          return;
+        }
+        var currencyPick = event.target.closest('[data-cur]');
+        if (currencyPick) {
+          currency = currencyPick.getAttribute('data-cur');
+          setSheet(null);
+          paint();
+          return;
+        }
+        // A quick decision keeps the sheet treatment; it never becomes a full screen.
+        if (event.target.closest('[data-review]')) {
+          setSheet('review');
+          return;
+        }
+        // Sign out lands on the sign-in screen, the way the app's Log out does.
+        if (event.target.closest('[data-logout]')) {
+          setSheet(null);
+          showAuthView(true);
+          return;
+        }
+        if (event.target.closest('#pv-signin')) {
+          signIn();
+          return;
+        }
+        if (event.target.closest('[data-eye]')) {
+          var pw = authEl('pv-password');
+          var shown = pw.getAttribute('type') === 'text';
+          pw.setAttribute('type', shown ? 'password' : 'text');
+          event.target.closest('[data-eye]').querySelector('.msym').textContent =
+            shown ? 'visibility_off' : 'visibility';
+          return;
+        }
+        if (event.target.closest('[data-forgot]')) {
+          var typed = authEl('pv-email').value.trim();
+          root.querySelector('#pv-resetemail').textContent = typed || 'your address';
+          setSheet('reset');
+          return;
+        }
+        if (event.target.closest('[data-register]')) {
+          setSheet('register');
+          return;
+        }
+        // The click hook is [data-see-all], not [data-goto]: the tile carries data-goto as
+        // configuration, so a descendant lookup on that attribute would match the tile
+        // itself and hijack the tap that was meant to open the detail.
+        var seeAll = event.target.closest('[data-see-all]');
+        if (seeAll) {
+          var gotoWhere = seeAll.getAttribute('data-goto');
+          var from = state.screen;
+          hideDetailNow();
+          state.screen = gotoWhere;
+          paint();
+          playScreen(gotoWhere, from);
+          return;
+        }
+        // Tapping a tile grows it into its detail screen. The hook is deliberately not
+        // "data-detail": the phone itself carries that as state, so a descendant lookup
+        // would match the phone from anywhere inside it.
+        var tile = event.target.closest('[data-tile]');
+        if (tile) {
+          openDetail(tile, tile.getAttribute('data-tile'));
+          return;
+        }
+        if (event.target.closest('[data-detail-close]')) {
+          closeDetail();
+          return;
+        }
+        if (event.target.closest('[data-close]')) {
+          setSheet(null);
+        }
+      });
+
+      if (scrim) { scrim.addEventListener('click', function () { setSheet(null); }); }
+
+      // "Today" and "Yesterday" are relative claims, so they are derived from the real clock
+      // instead of being hard-coded — a fixed label goes stale the moment the day turns, and
+      // a heading that says "Today" over a date from weeks ago is simply wrong. Anything
+      // older than yesterday is named outright: weekday and date.
+      function stampDates() {
+        var now = new Date();
+        var heads = root.querySelectorAll('[data-screen="transactions"] .dayhead > span:first-child');
+        Array.prototype.forEach.call(heads, function (el, i) {
+          if (i === 0) { el.textContent = 'Today'; return; }
+          if (i === 1) { el.textContent = 'Yesterday'; return; }
+          var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+          el.textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        });
+
+        var longToday = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        Array.prototype.forEach.call(root.querySelectorAll('[data-today]'), function (el) {
+          el.textContent = longToday;
+        });
+      }
+
+      stampDates();
+      paint();
+    })();
+  </script>
+</div>

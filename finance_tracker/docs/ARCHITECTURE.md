@@ -17,6 +17,7 @@
 7. [Configuration](#7-configuration)
 8. [API Response Format](#8-api-response-format)
 9. [Testing](#9-testing)
+10. [UI Port — Approved Prototype](#10-ui-port--approved-prototype)
 
 ---
 
@@ -998,3 +999,219 @@ Helpers:
 - `getFirstSourceId()` / `getFirstCategoryId()` — fetches seeded IDs
 
 Configuration: 30s timeouts, globals enabled.
+
+---
+
+## 10. UI Port — Approved Prototype
+
+The reference design is [`docs/prototype/m3-nav-prototype.html`](prototype/m3-nav-prototype.html) — a
+self-contained clickable prototype (open it directly in a browser; no server or build step).
+It is the source of truth for the changes below, and this section tracks their port into the
+Flutter app. It also covers the **sign-in screen**, which is pre-auth and so replaces the tab
+shell rather than becoming a fifth destination; three layouts (Plain / Hero / Card) were
+offered there for review, and the **Plain** layout is the one adopted.
+
+Motion timings come from the *Vaulta Tab & Tile Transitions Guide*; the table in 10.2 mirrors
+them so this section stands alone.
+
+### 10.1 Decisions
+
+The prototype has toggle groups, but those exist so a reviewer could compare options. The app
+adopts the reviewed state, not every variant:
+
+| Prototype control | Adopted |
+| --- | --- |
+| Bottom nav | **Flat bar with a 3 px top indicator line** that glides between destinations |
+| Overall look | **M3 reskin** — surface tiers, 20 px buttons, 28 px drag-handle sheets. The "current" look was a comparison only and is not adopted |
+| Loans sub-tabs | **Secondary** — filled pills, not an underline. "Primary" was a comparison |
+| Phone theme | Both light and dark |
+| Motion | **Full** — every timing in 10.2, played unconditionally |
+| Sign-in layout | **Plain** — no app bar, brand block above the form |
+
+### 10.2 Motion spec
+
+Every duration is a named constant in one place so tuning is a single edit.
+
+| Element | Duration | Easing |
+| --- | --- | --- |
+| Tile → detail container | 320 ms | `cubic-bezier(0.2, 0, 0, 1)` |
+| Detail content fade | 150 ms, 110 ms delay (rows/actions 170 ms) | standard |
+| Back / collapse | 300 ms | emphasized |
+| Tab slide (shared axis X) | 300 ms | emphasized |
+| Nav indicator glide | 280 ms | same as the slide |
+| Sheet in / out | 300 ms / 220 ms | emphasized |
+| Scrim fade | 220 ms | standard |
+| List stagger | 40 ms per item, max 6 | ease-out |
+
+Rules:
+
+- A tapped tile grows from its own rectangle and keeps its corner radius and colour through
+  the first half of the grow, so the tap origin stays legible.
+- Detail content does not animate on the same beat as its container: the header arrives at
+  110 ms, the rows and actions at 170 ms.
+- A tab switch slides the incoming screen from the side the tab order came from — later tab
+  from the right, earlier from the left.
+- An open detail is closed **before** a tab change; animating both reads as one muddled
+  double movement.
+- Quick decisions (such as *mark as reviewed*) stay bottom sheets, never full screens.
+- Motion is played in full. Flutter shortens every default-behaviour `AnimationController`
+  to 5% of its duration while `AccessibilityFeatures.disableAnimations` is set — one frame,
+  which is what reads as an instant cut — so every controller the app owns is created with
+  `AnimationBehavior.preserve` (`lib/widgets/motion/full_motion_route.dart`,
+  `lib/widgets/navigation/app_bottom_nav.dart`, `tab_slide.dart`, `stagger.dart`, the auth
+  shake and `showAppSheet`).
+
+### 10.3 Changes to port — rationale
+
+The list below is the reasoning behind each change and, through its checkboxes, the record of
+what is done — kept here so the spec and the design reference stay together.
+
+**Bottom navigation** (`lib/main.dart`, `lib/config/theme.dart`)
+
+- [x] Tab 2's label becomes **Activity**; the screen keeps its own *Transactions* title.
+- [x] Flat bar: plain surface, no tonal pill, 3 px primary line across the top edge of the
+      selected destination. `NavigationBar` cannot glide an indicator, so this is a custom
+      widget — `lib/widgets/navigation/app_bottom_nav.dart`.
+- [x] The indicator glides between destinations in 280 ms instead of appearing per item.
+- [x] Labels stay unclipped at narrow widths: the nav label style is pinned to 12 px, where
+      the default 14 clipped the longer destinations.
+- [x] Badges kept: pending-review on Activity, overdue on Loans.
+
+**Motion** (`lib/main.dart`, new shared widgets, `pubspec.yaml`)
+
+- [x] The tile → detail transform is the app's own `ContainerTransformRoute`
+      (`lib/widgets/motion/full_motion_route.dart`) rather than the `animations` package's
+      `OpenContainer`: its route can opt out of the reduce-motion scaling, and it does not
+      allocate two `GlobalKey`s per tile. An enter-only slide drives tabs (an `IndexedStack`
+      is kept for per-tab scroll state).
+- [x] Tab slide, list stagger, tile → detail, sheet slide, per 10.2.
+
+**Tiles that open a detail**
+
+The prototype opens all 18 tiles, and each detail **mirrors the rows out of the tile that was
+tapped**, so a detail can never disagree with the card it came from. The mechanism is ported
+through a shared `OpenTile` / `OpenContainer` rather than a hand-authored screen per tile
+(`lib/widgets/motion/open_tile.dart`, `lib/widgets/dashboard/tile_detail.dart`).
+
+- [x] Income / Expense / Balance tiles → a breakdown of the figure.
+- [x] Dashboard Loans card → its owed/owe rows plus a **See all loans** action that lands on
+      the Loans tab.
+- [x] Expenses by Category and Top Merchants → their own rows.
+- [x] Each **By person** row → that person's owed / owe / net.
+- [x] Loan cards and transaction rows → the same transform
+      (`loan_detail_screen.dart`, `transaction_detail_screen.dart`). A transparent tile must
+      morph with the nearest ancestor that paints a colour, or the grow starts invisible.
+
+**Loans**
+
+- [x] Remaining amount as the headline, labelled `left`, with the original total below
+      (`of Rs 30,000`). — `widgets/loans/loan_card.dart`, `screens/loans/loan_detail_screen.dart`
+- [x] By person already shows what is owed *now* and reconciles: `GET /api/loans/summary`
+      computes `GREATEST(principal - paid, 0)`, counting active loans only, so it agrees with
+      the list and with the dashboard card.
+- [x] Consolidate the loan filters into one control. The prototype has a single `Filters` chip
+      (Person / Direction / Status / Sort); the app now has one chip opening the sheet, with
+      the old `SegmentedButton` and app-bar filter icon gone. — `widgets/loans/loan_list_view.dart`,
+      `screens/loans/loan_list_screen.dart`, `widgets/loans/loan_filter_sheet.dart`
+- [x] Record payment also sits on the loan card row (`LoanCard.onRecordPayment`), so a
+      repayment no longer requires opening the detail first.
+
+**Transactions**
+
+- [x] Day headings: `Today` / `Yesterday` only when true, otherwise the weekday and date,
+      compared as calendar days rather than elapsed hours. Grouped only when the list is
+      date-sorted, since an amount sort interleaves the days. — `Formatters.dayLabel()`,
+      `transaction_list_screen.dart`
+- [x] Inline search at the top of the list, debounced into `TransactionFilters.search` via a
+      new `TransactionProvider.setSearch()`, which is built explicitly because `copyWith`
+      treats null as "keep the old value" and so could never clear the term.
+- [x] The review banner's **Show** opens a bottom sheet carrying *Mark as reviewed*.
+      — `widgets/transactions/review_sheet.dart`
+
+**Dashboard**
+
+- [x] Hairline card edge in both themes, so cards stop reading as washed out. — `cardTheme`
+- [x] Theme roles instead of hardcoded greys, and the semantic colours are brightness-aware
+      now (`AppTheme.incomeFor` / `expenseFor` / `warnFor`): light takes the deeper shade,
+      where the bright tints measured 3.03:1 and 2.83:1 against card surfaces.
+- [x] Currency correctness — see 10.4.
+
+**Settings**
+
+- [x] Log out is a danger-red row behind its own divider, with bottom padding that clears the
+      nav bar. Today it was a red button ending flush against it.
+
+**Theme**
+
+- [x] Scrollbar follows the app theme, and `scrollBehavior` now enables scrollbars at all —
+      Flutter only draws them by default on desktop, so the themed thumb would otherwise
+      never appear on a phone.
+- [x] Audit for colours that follow the **OS** brightness rather than the app's theme mode. No
+      call site reads `MediaQuery.platformBrightnessOf`; every colour comes from
+      `Theme.of(context)` or the brightness-aware `AppTheme` helpers.
+
+**Sign-in** (`lib/screens/auth/`)
+
+- [x] **Plain** layout on one shared `AuthLayout`: a brand block above the form, no app bar.
+- [x] Failures reported inline — a per-field message plus a banner — rather than a snackbar
+      over the form; the submit button keeps its own spinner and is marked busy for a reader.
+- [x] **Keep me signed in**: ticked by default, so the session survives a restart. Unticked
+      keeps the tokens in memory only — including across a token refresh, which must not
+      quietly persist a session the user chose to keep for this run only.
+- [x] Fits a standard phone height with no scrollbar and no empty tail: the brand opens the
+      screen, the form sits in the middle and the privacy line closes it
+      (`MainAxisAlignment.spaceBetween` over the full viewport). Every control keeps a 44 px
+      touch target, and the privacy line takes a near-body colour so it reads as the trust
+      message it is.
+
+### 10.4 Currency correctness (the only money-affecting change)
+
+`GET /api/dashboard/*` multiplies each amount by `COALESCE(u.exchange_rates->>currency, 1)`
+(`src/routes/dashboard.js`), so all seven aggregates are already expressed in the user's base
+currency. Two gaps remain:
+
+- [x] When the base currency is not PKR and the rate map is empty, **do not** render a
+      converted-looking total. The `COALESCE(..., 1)` fallback silently treats PKR amounts as
+      base currency, so changing currency with the rates not yet fetched labels PKR figures
+      with the new symbol. The dashboard waits for a non-empty map instead
+      (`ratesReadyFor`, `lib/utils/currency.dart`).
+- [x] Reload the dashboard as part of the currency change rather than waiting for a tab tap
+      (`auth.updateProfile(currency: …)` → `dashboardProvider.loadDashboard()`), or the tiles
+      show the old totals under the new symbol for one round-trip.
+      — `screens/settings/settings_screen.dart`, `providers/dashboard_provider.dart`
+
+### 10.5 Verification — detail
+
+These are the checks that matter and why.
+
+- [x] `flutter analyze` clean, full `flutter test` suite green.
+- [x] `Formatters.dayLabel()` covered by `test/formatters_day_label_test.dart`: today,
+      yesterday, a late-evening yesterday that must still read as a calendar day, an older
+      date, and a future date that must never be claimed as today.
+- [x] The currency decision covered by a unit test (an empty rate map must not render a
+      total) — `test/currency_decision_test.dart`. The flat bar is covered by
+      `test/app_bottom_nav_test.dart`: the indicator lands on the selected slot and every
+      label fits at 360 dp.
+- [x] Full motion covered by `test/full_motion_test.dart`: with
+      `debugSemanticsDisableAnimations` on, a preserved controller keeps its duration while a
+      plain one finishes at once, a `FullMotionPageRoute` is still travelling when a
+      `MaterialPageRoute` has settled, and the container transform opens and collapses.
+- [x] The sign-in layout covered by `test/login_layout_test.dart`: it fits 360 × 640 with
+      nothing to scroll, and the checkbox, links and button all keep a 44 px target.
+- [ ] Timings within ~40 ms of 10.2, measured on a **mid-range Android device** — an emulator
+      hides the jank.
+- [x] Prototype guards: extract the inline script and `node --check` it, and confirm the
+      stylesheet's braces balance. A stray brace or a bad `else` in one file silently kills
+      every listener on the page — that happened once already.
+
+### 10.6 Not part of this port
+
+Tracked separately, since the prototype does not cover them:
+
+- `android:enableOnBackInvokedCallback="true"` is absent from `AndroidManifest.xml`.
+- `dart run flutter_launcher_icons` has never been run (config and `assets/icon.png` exist).
+- Edge-to-edge system bars and a native splash screen.
+- `widgets/transactions/transaction_filter_sheet.dart` constructs a `TextEditingController`
+  inside `build()` and never disposes it.
+- The dashboard load issues a second `countByStatus` request that could be folded into the list
+  response.

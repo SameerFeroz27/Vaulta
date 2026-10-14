@@ -25,6 +25,28 @@ class Formatters {
     return DateFormat('MMM d').format(date);
   }
 
+  /// Heading for a group of one day's transactions.
+  ///
+  /// "Today" and "Yesterday" are relative claims, so they are returned only when the date
+  /// really is that day — compared as calendar days rather than elapsed hours, so a row at
+  /// 23:00 yesterday is still yesterday. Any other date, a future one included, is named
+  /// outright as the weekday and date, e.g. "Sun, Oct 11".
+  static String dayLabel(String dateString) {
+    final date = DateTime.parse(dateString);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(date.year, date.month, date.day);
+
+    switch (today.difference(day).inDays) {
+      case 0:
+        return 'Today';
+      case 1:
+        return 'Yesterday';
+      default:
+        return DateFormat('EEE, MMM d').format(date);
+    }
+  }
+
   /// Format a YYYY-MM string as "September 2026".
   static String month(String monthString) {
     final parts = monthString.split('-');

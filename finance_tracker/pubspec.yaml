@@ -46,6 +46,10 @@ dependencies:
   # Charts for dashboard
   fl_chart: ^0.69.0
 
+  # Material motion: OpenContainer for the tile -> detail container transform, and
+  # SharedAxisTransition for tab changes. See Motion in lib/config/motion.dart.
+  animations: ^2.0.11
+
   # Secure storage for JWT tokens
   flutter_secure_storage: ^9.2.2
 

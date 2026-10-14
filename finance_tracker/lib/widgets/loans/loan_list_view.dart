@@ -3,21 +3,26 @@ import 'package:provider/provider.dart';
 
 import '../../models/loan.dart';
 import '../../providers/loan_provider.dart';
+import '../../screens/loans/loan_detail_screen.dart';
+import '../common/app_sheet.dart';
 import '../common/empty_state.dart';
 import '../common/error_state.dart';
+import '../motion/open_tile.dart';
+import '../motion/stagger.dart';
 import 'loan_card.dart';
+import 'loan_filter_sheet.dart';
 
-/// The "Loans" tab: the active loan list with its direction filter.
+/// The "Loans" tab: the active loan list behind a single Filters control.
 ///
 /// Navigation is left to [LoanListScreen], which owns the app bar and the FAB, so this
 /// view stays presentational.
 class LoanListView extends StatefulWidget {
   final VoidCallback onAddLoan;
-  final void Function(Loan loan) onOpenLoan;
+  final void Function(Loan loan) onRecordPayment;
 
   const LoanListView({
     required this.onAddLoan,
-    required this.onOpenLoan,
+    required this.onRecordPayment,
     super.key,
   });
 
@@ -47,25 +52,15 @@ class _LoanListViewState extends State<LoanListView> {
     }
   }
 
-  /// 'all' | 'lent' | 'borrowed'. Kept out of [LoanFilters] so the sheet and this
-  /// segmented control can be changed independently.
-  String get _directionFilter {
-    final direction = context.watch<LoanProvider>().filters.direction;
-    return direction ?? 'all';
-  }
-
-  void _applyDirection(String value) {
+  Future<void> _openFilters() async {
     final provider = context.read<LoanProvider>();
-    final f = provider.filters;
-    provider.setFilters(
-      LoanFilters(
-        direction: value == 'all' ? null : value,
-        state: f.state,
-        search: f.search,
-        sort: f.sort,
-        order: f.order,
-      ),
+    final result = await showAppSheet<LoanFilters>(
+      context: context,
+      builder: (_) => LoanFilterSheet(currentFilters: provider.filters),
     );
+    if (result != null && mounted) {
+      provider.setFilters(result);
+    }
   }
 
   @override
@@ -76,19 +71,30 @@ class _LoanListViewState extends State<LoanListView> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'all', label: Text('All')),
-              ButtonSegment(value: LoanDirection.lent, label: Text('Owed to me')),
-              ButtonSegment(value: LoanDirection.borrowed, label: Text('I owe')),
-            ],
-            selected: {_directionFilter},
-            onSelectionChanged: (set) => _applyDirection(set.first),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _FiltersChip(
+              summary: _filterSummary(provider.filters),
+              active: provider.filters.hasActiveFilters,
+              onTap: _openFilters,
+            ),
           ),
         ),
         Expanded(child: _buildBody(provider)),
       ],
     );
+  }
+
+  /// "All · Any" — the two choices that narrow the list most often, so the chip says what
+  /// is on without having to be opened.
+  String _filterSummary(LoanFilters f) {
+    final direction = f.direction == null
+        ? 'All'
+        : (f.direction == LoanDirection.lent ? 'Owed to me' : 'I owe');
+    final state = f.state == null
+        ? 'Any'
+        : (f.state == LoanState.open ? 'Open' : 'Settled');
+    return '$direction · $state';
   }
 
   Widget _buildBody(LoanProvider provider) {
@@ -110,12 +116,8 @@ class _LoanListViewState extends State<LoanListView> {
           if (provider.loans.isEmpty)
             SizedBox(height: 280, child: _buildEmptyState(provider))
           else
-            ...provider.loans.map(
-              (loan) => LoanCard(
-                loan: loan,
-                onTap: () => widget.onOpenLoan(loan),
-              ),
-            ),
+            for (var i = 0; i < provider.loans.length; i++)
+              StaggerItem(index: i, child: _openableLoan(provider.loans[i])),
           if (provider.hasMore)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -123,6 +125,22 @@ class _LoanListViewState extends State<LoanListView> {
             ),
         ],
       ),
+    );
+  }
+
+  /// The card grows into its own detail, and the list refreshes once it closes in case a
+  /// repayment was recorded there.
+  Widget _openableLoan(Loan loan) {
+    return OpenTile(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      tileBuilder: (context, open) => LoanCard(
+        loan: loan,
+        margin: EdgeInsets.zero,
+        onTap: open,
+        onRecordPayment: () => widget.onRecordPayment(loan),
+      ),
+      detailBuilder: (_) => LoanDetailScreen(loanId: loan.id),
+      onClosed: () => context.read<LoanProvider>().loadLoans(),
     );
   }
 
@@ -147,6 +165,59 @@ class _LoanListViewState extends State<LoanListView> {
               icon: const Icon(Icons.add),
               label: const Text('Add a loan'),
             ),
+    );
+  }
+}
+
+/// The one control that narrows the loan list — Person, Direction, Status and Sort all live
+/// in the sheet behind it, rather than half here and half on the app bar.
+class _FiltersChip extends StatelessWidget {
+  final String summary;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _FiltersChip({
+    required this.summary,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 7, 8, 7),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: active ? scheme.primary : theme.dividerColor,
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.filter_list, size: 18, color: muted),
+              const SizedBox(width: 7),
+              const Text(
+                'Filters',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              Text(summary, style: TextStyle(fontSize: 12, color: muted)),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more, size: 18, color: muted),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

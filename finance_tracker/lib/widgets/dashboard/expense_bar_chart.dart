@@ -42,7 +42,7 @@ class ExpenseBarChart extends StatelessWidget {
                       barRods: [
                         BarChartRodData(
                           toY: point.totalExpense,
-                          color: AppTheme.expenseColor,
+                          color: AppTheme.expenseFor(context),
                           width: 20,
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(4),
@@ -84,7 +84,9 @@ class ExpenseBarChart extends StatelessWidget {
                             months[date.month - 1],
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey[600],
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           );
                         },

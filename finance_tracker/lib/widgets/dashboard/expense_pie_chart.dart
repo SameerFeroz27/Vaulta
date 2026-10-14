@@ -11,11 +11,19 @@ class ExpensePieChart extends StatelessWidget {
   final List<Color>? defaultColors;
   final String currency;
 
+  /// Opens the tile's detail. Null leaves the card inert.
+  final VoidCallback? onTap;
+
+  /// The card's outer spacing, so a caller growing the card can own the padding itself.
+  final EdgeInsetsGeometry margin;
+
   const ExpensePieChart({
     required this.title,
     required this.breakdown,
     this.defaultColors,
     this.currency = 'PKR',
+    this.onTap,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     super.key,
   });
 
@@ -41,103 +49,112 @@ class ExpensePieChart extends StatelessWidget {
     final items = breakdown.items.where((i) => i.total > 0).toList();
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            if (items.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'No expenses this month',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              )
-            else
-              Row(
-                children: [
-                  SizedBox(
-                    width: 140,
-                    height: 140,
-                    child: PieChart(
-                      PieChartData(
-                        sections: items.asMap().entries.map((entry) {
-                          final i = entry.key;
-                          final item = entry.value;
-                          return PieChartSectionData(
-                            value: item.total,
-                            color: _colorFor(i, item.color),
-                            title: '${item.percentage.toStringAsFixed(0)}%',
-                            radius: 50,
-                            titleStyle: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        }).toList(),
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 30,
+      margin: margin,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              if (items.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'No expenses this month',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: items.map((item) {
-                        final index = items.indexOf(item);
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: _colorFor(index, item.color),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
+                )
+              else
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      height: 140,
+                      child: PieChart(
+                        PieChartData(
+                          sections: items.asMap().entries.map((entry) {
+                            final i = entry.key;
+                            final item = entry.value;
+                            return PieChartSectionData(
+                              value: item.total,
+                              color: _colorFor(i, item.color),
+                              title: '${item.percentage.toStringAsFixed(0)}%',
+                              radius: 50,
+                              titleStyle: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  item.icon != null
-                                      ? '${item.icon} ${item.name}'
-                                      : item.name,
-                                  style: const TextStyle(fontSize: 13),
+                            );
+                          }).toList(),
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 30,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: items.map((item) {
+                          final index = items.indexOf(item);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: _colorFor(index, item.color),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    item.icon != null
+                                        ? '${item.icon} ${item.name}'
+                                        : item.name,
+                                    style: const TextStyle(fontSize: 13),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  Formatters.currency(
+                                    item.total,
+                                    code: currency,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                Formatters.currency(item.total,
-                                    code: currency),
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-          ],
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

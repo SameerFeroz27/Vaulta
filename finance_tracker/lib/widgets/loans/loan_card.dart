@@ -8,7 +8,22 @@ class LoanCard extends StatelessWidget {
   final Loan loan;
   final VoidCallback onTap;
 
-  const LoanCard({required this.loan, required this.onTap, super.key});
+  /// When provided, a "Record payment" action sits on the card's footer row so a repayment
+  /// can be made without opening the detail first.
+  final VoidCallback? onRecordPayment;
+
+  /// The card's outer spacing. A caller that wraps the card in its own layout — a growing
+  /// container, say — passes zero and owns the padding itself, so the container's surface
+  /// lines up with the card rather than its margin.
+  final EdgeInsetsGeometry margin;
+
+  const LoanCard({
+    required this.loan,
+    required this.onTap,
+    this.onRecordPayment,
+    this.margin = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +33,7 @@ class LoanCard extends StatelessWidget {
     final amountColor = loan.isLent ? Colors.green[700]! : Colors.red[700]!;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: margin,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -84,9 +99,11 @@ class LoanCard extends StatelessWidget {
                         ),
                       ),
                       Text(
+                        // What is left leads, because that is the figure the user acts on.
+                        // The original amount sits on the footer line beneath it.
                         loan.hasSurplus
                             ? 'over the amount'
-                            : (loan.isSettled ? 'nothing outstanding' : 'outstanding'),
+                            : (loan.isSettled ? 'nothing outstanding' : 'left'),
                         style: TextStyle(fontSize: 10, color: muted),
                       ),
                     ],
@@ -107,26 +124,25 @@ class LoanCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Flexible so a long amount cannot push the due date out of the card.
-                  Flexible(
+                  // Flexible so a long amount cannot push the payment action out of the card.
+                  Expanded(
                     child: Text(
-                      '${Formatters.currency(loan.paid)} of ${Formatters.currency(loan.principal)} repaid',
+                      _footerLabel(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: muted),
-                    ),
-                  ),
-                  if (loan.dueDate != null)
-                    Text(
-                      'Due ${Formatters.shortDate(loan.dueDate!)}',
                       style: TextStyle(
                         fontSize: 11,
                         color: loan.overdue ? Colors.red[700] : muted,
-                        fontWeight: loan.overdue ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight:
+                            loan.overdue ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
+                  ),
+                  if (onRecordPayment != null) ...[
+                    const SizedBox(width: 8),
+                    _PayButton(onTap: onRecordPayment!),
+                  ],
                 ],
               ),
             ],
@@ -134,6 +150,18 @@ class LoanCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// The original amount and the due date on one line, so what is still left stays the
+  /// headline above. A loan with no due date says so rather than leaving a gap.
+  String _footerLabel() {
+    final parts = <String>['of ${Formatters.currency(loan.principal)}'];
+    parts.add(
+      loan.dueDate == null
+          ? 'No due date'
+          : 'Due ${Formatters.shortDate(loan.dueDate!)}',
+    );
+    return parts.join(' · ');
   }
 
   String _subtitle() {
@@ -164,6 +192,40 @@ class _Chip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+}
+
+/// The tonal "Record payment" pill on the card footer. Its own tap target consumes the tap,
+/// so it opens the sheet rather than the loan detail behind it.
+class _PayButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _PayButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final radius = BorderRadius.circular(12);
+
+    return Material(
+      color: primary.withValues(alpha: 0.12),
+      borderRadius: radius,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          child: Text(
+            'Record payment',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: primary,
+            ),
+          ),
+        ),
       ),
     );
   }

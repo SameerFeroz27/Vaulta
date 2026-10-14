@@ -20,6 +20,9 @@ class LoansCard extends StatelessWidget {
   final Map<String, double>? exchangeRates;
   final VoidCallback onTap;
 
+  /// The card's outer spacing, so a caller growing the card can own the padding itself.
+  final EdgeInsetsGeometry margin;
+
   const LoansCard({
     required this.theyOwe,
     required this.iOwe,
@@ -28,6 +31,7 @@ class LoansCard extends StatelessWidget {
     this.overdueCount = 0,
     this.currency = 'PKR',
     this.exchangeRates,
+    this.margin = const EdgeInsets.fromLTRB(12, 8, 12, 4),
     super.key,
   });
 
@@ -58,7 +62,7 @@ class LoansCard extends StatelessWidget {
     final muted = theme.colorScheme.onSurfaceVariant;
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      margin: margin,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

@@ -27,7 +27,7 @@ function stripReasoningTags(text) {
 // ─── Prompts ─────────────────────────────────────────────────────
 
 const RECEIPT_SYSTEM_PROMPT = `You are a receipt parsing assistant. Extract all transaction details from the receipt image and return ONLY a valid JSON object with these fields:
-- merchant: string (store/merchant name)
+- merchant: string (the store or business the receipt is from). A bank, card issuer or payment processor printed on the receipt is not the merchant. Copy the name as printed: never correct, complete, translate or re-spell it, and never invent one — if you cannot read the name, omit the merchant.
 - amount: number (total amount paid)
 - total: number (same as amount)
 - subtotal: number (amount before tax, if shown)

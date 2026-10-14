@@ -7,6 +7,7 @@ import '../../widgets/common/empty_state.dart';
 import '../../widgets/common/error_state.dart';
 import '../../widgets/common/loading_indicator.dart';
 import 'category_form_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 /// Lists all categories (global + user-created) with the ability to
 /// create, edit, and delete user-created categories.
@@ -35,7 +36,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const CategoryFormScreen()),
+          FullMotionPageRoute(builder: (_) => const CategoryFormScreen()),
         ),
         child: const Icon(Icons.add),
       ),
@@ -75,7 +76,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                     category: c,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      FullMotionPageRoute(
                         builder: (_) => CategoryFormScreen(category: c),
                       ),
                     ),

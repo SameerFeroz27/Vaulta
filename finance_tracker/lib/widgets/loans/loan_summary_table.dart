@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/loan.dart';
 import '../../utils/formatters.dart';
+import '../motion/open_tile.dart';
 
 /// Every person's standing across their active loans.
 ///
@@ -13,7 +14,16 @@ import '../../utils/formatters.dart';
 class LoanSummaryTable extends StatelessWidget {
   final List<LoanSummaryPerson> people;
 
-  const LoanSummaryTable({required this.people, super.key});
+  /// When provided, a person's row grows into that person's own detail — the same owed /
+  /// owe / net rows, magnified. Null leaves the rows as plain table rows.
+  final Widget Function(BuildContext context, LoanSummaryPerson person)?
+      personDetailBuilder;
+
+  const LoanSummaryTable({
+    required this.people,
+    this.personDetailBuilder,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +41,7 @@ class LoanSummaryTable extends StatelessWidget {
           children: [
             for (var i = 0; i < people.length; i++) ...[
               if (i > 0) const Divider(height: 1),
-              _personBlock(people[i], muted),
+              _personRow(context, people[i], muted),
             ],
             if (people.length > 1) ...[
               const Divider(height: 1),
@@ -40,6 +50,24 @@ class LoanSummaryTable extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _personRow(
+    BuildContext context,
+    LoanSummaryPerson person,
+    Color muted,
+  ) {
+    final block = _personBlock(person, muted);
+    final detailBuilder = personDetailBuilder;
+    if (detailBuilder == null) return block;
+
+    // The row is transparent — it sits on the card's surface — so the grow starts from that
+    // surface's colour, and from a square corner to match the row's own shape.
+    return OpenTile(
+      radius: 0,
+      tileBuilder: (context, open) => InkWell(onTap: open, child: block),
+      detailBuilder: (context) => detailBuilder(context, person),
     );
   }
 

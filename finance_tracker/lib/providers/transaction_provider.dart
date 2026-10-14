@@ -103,6 +103,66 @@ class TransactionProvider extends ChangeNotifier {
     await loadTransactions();
   }
 
+  /// Change only the search term, keeping every other filter.
+  ///
+  /// Built explicitly rather than with copyWith, which treats null as "keep the old value"
+  /// and so could never clear the term once set.
+  Future<void> setSearch(String? search) async {
+    final f = _filters;
+    await setFilters(
+      TransactionFilters(
+        month: f.month,
+        source: f.source,
+        category: f.category,
+        type: f.type,
+        status: f.status,
+        search: (search == null || search.trim().isEmpty)
+            ? null
+            : search.trim(),
+        sort: f.sort,
+        order: f.order,
+      ),
+    );
+  }
+
+  /// Fetch the rows waiting on a direction decision, for the review sheet.
+  ///
+  /// A failure here resolves to an empty list rather than touching [error]: the sheet still
+  /// shows the count and can be dismissed, and the list underneath must not break.
+  Future<List<Transaction>> fetchPendingReview() async {
+    try {
+      final result = await _transactionService.list(
+        page: 1,
+        limit: 50,
+        filters: TransactionFilters(status: 'needs_review'),
+      );
+      return result.transactions;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Confirm every transaction waiting on a direction decision, keeping the direction each
+  /// already carries. Returns how many were confirmed, so the sheet can report it.
+  Future<int> markAllAsReviewed() async {
+    final pending = await fetchPendingReview();
+    var confirmed = 0;
+    for (final transaction in pending) {
+      try {
+        await _transactionService.confirm(transaction.id);
+        confirmed++;
+      } catch (_) {
+        // One failure must not abandon the rest.
+      }
+    }
+
+    if (confirmed > 0) {
+      await loadTransactions();
+      _refreshDependents();
+    }
+    return confirmed;
+  }
+
   /// Clear all filters and reload.
   Future<void> clearFilters() async {
     _filters = TransactionFilters();

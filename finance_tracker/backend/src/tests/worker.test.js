@@ -3,7 +3,7 @@ const {
   safeJsonParse,
   parseAndValidateAiOutput,
 } = require('../validators/ai-output.schema');
-const { parseBankMessage, buildAiPrompt } = require('../services/bank-message');
+const { parseBankMessage, buildAiPrompt, sanitizeBankMerchant, BANK_MESSAGE_SYSTEM_PROMPT } = require('../services/bank-message');
 const bankSmsFixtures = require('./fixtures/bank-sms.json');
 
 // ─── stripMarkdownFences ─────────────────────────────────────────
@@ -253,5 +253,89 @@ describe('buildAiPrompt', () => {
     const prompt = buildAiPrompt('PKR 1,500 spent at KFC', {});
     expect(prompt).toContain('typeConfidence');
     expect(prompt).toContain('directionEvidence');
+  });
+});
+
+// ─── The merchant a bank message yields ───────────────────────────
+
+describe('sanitizeBankMerchant', () => {
+  const alfalah = bankSmsFixtures.cases.find((c) =>
+    c.name.startsWith('Transfer to a person, sending bank named')
+  );
+
+  const hblPurchase =
+    'HBL: Your Debit Card ending 1234 has been debited with PKR 1,500.00 at KFC on 15-01-24. Available Balance: PKR 50,000.00';
+
+  it('keeps the person a transfer names', () => {
+    // A real Pakistani SMS writes the two names with different prominence; the counterparty
+    // is the one that belongs on the transaction.
+    const result = sanitizeBankMerchant('HASSAN', alfalah.message);
+    expect(result.merchant).toBe('HASSAN');
+    expect(result.rejected).toBeNull();
+  });
+
+  it('drops the bank when it is spelled correctly', () => {
+    expect(sanitizeBankMerchant('Alfalah Bank', alfalah.message).merchant).toBeNull();
+    expect(sanitizeBankMerchant('Alfalah', alfalah.message).merchant).toBeNull();
+  });
+
+  it('drops a re-spelled name that appears nowhere in the message', () => {
+    // The reported failure: the transaction was filed as "Alfaz bank".
+    expect(sanitizeBankMerchant('Alfaz bank', alfalah.message).merchant).toBeNull();
+
+    const result = sanitizeBankMerchant('Alfaz', alfalah.message);
+    expect(result.merchant).toBeNull();
+    expect(result.rejected).toMatch(/does not appear/);
+  });
+
+  it('drops a bank short code', () => {
+    expect(sanitizeBankMerchant('HBL', hblPurchase).merchant).toBeNull();
+  });
+
+  it('drops the schema placeholder the parser falls back to', () => {
+    expect(sanitizeBankMerchant('Unknown', alfalah.message).merchant).toBeNull();
+  });
+
+  it('keeps an ordinary merchant from a card purchase', () => {
+    expect(sanitizeBankMerchant('KFC', hblPurchase).merchant).toBe('KFC');
+  });
+
+  it('keeps a legitimate expansion of a shop name', () => {
+    // Word-by-word comparison, not whole-string, so filling in a shop's full name survives.
+    const msg = 'POS purchase of PKR 850.00 made at METRO on card ending 4321.';
+    expect(sanitizeBankMerchant('Metro Cash & Carry', msg).merchant).toBe(
+      'Metro Cash & Carry'
+    );
+  });
+
+  it('has nothing to check when no merchant was returned', () => {
+    expect(sanitizeBankMerchant(undefined, 'anything')).toEqual({
+      merchant: null,
+      rejected: null,
+    });
+    expect(sanitizeBankMerchant('   ', 'anything')).toEqual({
+      merchant: null,
+      rejected: null,
+    });
+  });
+});
+
+describe('bank prompt merchant rules', () => {
+  it('asks for the counterparty', () => {
+    expect(BANK_MESSAGE_SYSTEM_PROMPT).toMatch(/counterparty/);
+    expect(buildAiPrompt('PKR 100 transferred to ALI', {})).toMatch(/counterparty/);
+  });
+
+  it('rules the bank out explicitly', () => {
+    expect(BANK_MESSAGE_SYSTEM_PROMPT).toMatch(
+      /bank or wallet named in the message is never the merchant/
+    );
+  });
+
+  it('requires names to be copied rather than corrected', () => {
+    expect(BANK_MESSAGE_SYSTEM_PROMPT).toMatch(/Copy every name exactly/);
+    expect(buildAiPrompt('PKR 100 transferred to ALI', {})).toMatch(
+      /never invent one/
+    );
   });
 });

@@ -9,7 +9,7 @@ const { eq, inArray, sql } = require('drizzle-orm');
 const { parseReceiptWithVision } = require('./services/ai');
 const { parseTextWithGroq, DEFAULT_TEXT_MODEL, DEFAULT_VISION_MODEL } = require('./services/ai');
 const { parseReceiptWithOcrFallback } = require('./services/ocr');
-const { parseBankMessage, buildAiPrompt, BANK_MESSAGE_SYSTEM_PROMPT } = require('./services/bank-message');
+const { parseBankMessage, buildAiPrompt, sanitizeBankMerchant, BANK_MESSAGE_SYSTEM_PROMPT } = require('./services/bank-message');
 const { resolveDirection } = require('./services/direction');
 const { parseAndValidateAiOutput } = require('./validators/ai-output.schema');
 const { findDuplicateByAmountAndDate } = require('./services/duplicate');
@@ -250,6 +250,24 @@ async function processReceipt(receiptId) {
       description = aiData.items.map((item) => `${item.quantity}x ${item.name}`).join(', ');
     }
 
+    // A bank message has to yield a merchant, and the loudest proper noun in one is the
+    // sending bank — which is how a transfer to a person gets filed under the bank's name.
+    // The name is checked against the message before it is stored: a name that is the bank,
+    // or that is not in the message at all, is dropped rather than filed, and the row falls
+    // back to its category instead of showing a name the user never wrote.
+    let merchant = aiData.merchant || null;
+    if (receipt.inputType === 'bank_message') {
+      const check = sanitizeBankMerchant(aiData.merchant, receipt.rawText);
+      merchant = check.merchant;
+      if (check.rejected) {
+        console.warn(
+          `[Worker] Receipt ${receiptId}: merchant "${aiData.merchant}" dropped — ${check.rejected}`
+        );
+        // Kept with the parse so a dropped name is visible when the receipt is inspected.
+        aiData.merchantRejected = check.rejected;
+      }
+    }
+
     const [newTransaction] = await db
       .insert(transactions)
       .values({
@@ -261,7 +279,7 @@ async function processReceipt(receiptId) {
         status: transactionStatus,
         typeConfidence: direction.confidence === null ? null : direction.confidence.toFixed(2),
         typeSource: direction.source,
-        merchant: aiData.merchant || null,
+        merchant: merchant,
         description: description || null,
         occurredAt: new Date(),
         transactionDate,

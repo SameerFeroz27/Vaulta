@@ -6,6 +6,7 @@ import '../../models/transaction.dart';
 import '../../providers/transaction_provider.dart';
 import '../../utils/formatters.dart';
 import 'transaction_form_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   final Transaction transaction;
@@ -16,8 +17,8 @@ class TransactionDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = transaction;
     final amountColor = t.isExpense
-        ? AppTheme.expenseColor
-        : AppTheme.incomeColor;
+        ? AppTheme.expenseFor(context)
+        : AppTheme.incomeFor(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -213,7 +214,7 @@ class TransactionDetailScreen extends StatelessWidget {
 
   void _openEdit(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      FullMotionPageRoute(
         builder: (_) => TransactionFormScreen(transaction: transaction),
       ),
     );

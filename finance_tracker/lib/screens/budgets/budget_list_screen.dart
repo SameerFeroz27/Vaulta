@@ -12,6 +12,7 @@ import '../../widgets/common/error_state.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/dashboard/budget_progress_card.dart';
 import 'budget_form_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 /// Lists budgets for the selected month with progress bars.
 /// Supports creating, editing, and deleting budgets.
@@ -35,7 +36,7 @@ class _BudgetListScreenState extends State<BudgetListScreen> {
     final provider = context.read<BudgetProvider>();
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => BudgetFormScreen(budget: budget)),
+      FullMotionPageRoute(builder: (_) => BudgetFormScreen(budget: budget)),
     ).then((_) => provider.loadBudgets(force: true));
   }
 

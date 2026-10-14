@@ -9,6 +9,7 @@ import '../../widgets/common/error_state.dart';
 import '../../widgets/common/loading_indicator.dart';
 import '../../widgets/loans/record_payment_sheet.dart';
 import 'loan_form_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 /// One loan in full: what is still owed, how far along, and every repayment made.
 class LoanDetailScreen extends StatefulWidget {
@@ -81,7 +82,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
     if (loan == null) return;
 
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => LoanFormScreen(loan: loan)),
+      FullMotionPageRoute(builder: (_) => LoanFormScreen(loan: loan)),
     );
     if (saved == true && mounted) await _load();
   }
@@ -246,7 +247,7 @@ class _LoanDetailScreenState extends State<LoanDetailScreen> {
               ),
             ),
             Text(
-              loan.isSettled ? 'Nothing outstanding' : 'still outstanding',
+              loan.isSettled ? 'Nothing outstanding' : 'left',
               style: TextStyle(fontSize: 12, color: muted),
             ),
             const SizedBox(height: 14),

@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../models/loan.dart';
 import '../../providers/loan_provider.dart';
-import '../../widgets/loans/loan_filter_sheet.dart';
+import '../../utils/formatters.dart';
 import '../../widgets/loans/loan_list_view.dart';
 import '../../widgets/loans/loan_person_summary_view.dart';
-import 'loan_detail_screen.dart';
+import '../../widgets/loans/record_payment_sheet.dart';
 import 'loan_form_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 /// The Loans feature, split into two tabs.
 ///
@@ -24,18 +25,11 @@ class LoanListScreen extends StatefulWidget {
 
 class _LoanListScreenState extends State<LoanListScreen>
     with SingleTickerProviderStateMixin {
-  static const int _summaryTabIndex = 1;
-
   late final TabController _tabController = TabController(length: 2, vsync: this);
-
-  /// Tracked separately because [TabController] notifies on every animation tick;
-  /// rebuilding for each of those would rebuild the list for no reason.
-  int _activeTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController.addListener(_onTabChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<LoanProvider>();
@@ -55,36 +49,30 @@ class _LoanListScreenState extends State<LoanListScreen>
     super.dispose();
   }
 
-  void _onTabChanged() {
-    if (_tabController.index != _activeTabIndex) {
-      setState(() => _activeTabIndex = _tabController.index);
-    }
-  }
-
-  Future<void> _openFilters() async {
-    final provider = context.read<LoanProvider>();
-    final result = await showModalBottomSheet<LoanFilters>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => LoanFilterSheet(currentFilters: provider.filters),
-    );
-    if (result != null && mounted) {
-      provider.setFilters(result);
-    }
-  }
-
   Future<void> _openForm() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoanFormScreen()),
+      FullMotionPageRoute(builder: (_) => const LoanFormScreen()),
     );
   }
 
-  Future<void> _openDetail(Loan loan) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => LoanDetailScreen(loanId: loan.id)),
-    );
-    // Repayments may have been added or deleted while the detail screen was open.
-    if (mounted) await context.read<LoanProvider>().loadLoans();
+  /// Recording from the card is the same flow as from the detail screen, so the two cannot
+  /// report different outcomes.
+  Future<void> _recordPayment(Loan loan) async {
+    final outcome = await RecordPaymentSheet.show(context, loan);
+    if (outcome == null || !mounted) return;
+
+    await context.read<LoanProvider>().loadLoans();
+    if (!mounted) return;
+
+    final message = outcome.alreadyRecorded
+        ? 'Already recorded.'
+        : outcome.surplusAdded > 0
+            ? 'Payment recorded — ${Formatters.currency(outcome.surplusAdded)} over the amount.'
+            : outcome.settled
+                ? 'Payment recorded — loan settled.'
+                : 'Payment recorded.';
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -94,18 +82,15 @@ class _LoanListScreenState extends State<LoanListScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Loans'),
-        actions: [
-          // Filtering narrows the loan list, so it is only offered on that tab.
-          if (_activeTabIndex != _summaryTabIndex)
-            IconButton(
-              icon: const Icon(Icons.filter_list_outlined),
-              onPressed: _openFilters,
-              tooltip: 'Filters',
-            ),
-        ],
-        // Two tabs, split evenly: the Material 3 default for a non-scrollable bar.
+        // Secondary sub-tabs: the selected one is a filled pill, not an underline. The
+        // indicator and colours come from `tabBarTheme` so the two tabs cannot drift.
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          // Keeps the pill snug around the label rather than the full bar height.
+          indicatorPadding: const EdgeInsets.symmetric(vertical: 8),
           tabs: const [
             Tab(text: 'Loans'),
             Tab(text: 'By person'),
@@ -124,7 +109,10 @@ class _LoanListScreenState extends State<LoanListScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                LoanListView(onAddLoan: _openForm, onOpenLoan: _openDetail),
+                LoanListView(
+                  onAddLoan: _openForm,
+                  onRecordPayment: _recordPayment,
+                ),
                 LoanPersonSummaryView(onAddLoan: _openForm),
               ],
             ),

@@ -8,9 +8,15 @@ class TransactionCard extends StatelessWidget {
   final Transaction transaction;
   final VoidCallback? onTap;
 
+  /// The card's outer spacing. A caller that wraps the card in its own layout — a growing
+  /// container, say — passes zero and owns the padding itself, so the container's surface
+  /// lines up with the card rather than its margin.
+  final EdgeInsetsGeometry margin;
+
   const TransactionCard({
     required this.transaction,
     this.onTap,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
     super.key,
   });
 
@@ -24,12 +30,13 @@ class TransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = transaction;
     final amountColor = t.isExpense
-        ? AppTheme.expenseColor
-        : AppTheme.incomeColor;
+        ? AppTheme.expenseFor(context)
+        : AppTheme.incomeFor(context);
     final amountPrefix = t.isExpense ? '-' : '+';
     final numberFormat = Formatters.currency(t.amount, code: t.currency);
 
     return Card(
+      margin: margin,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

@@ -79,14 +79,24 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  /// Sign in. When [keepSignedIn] is false the session is kept in memory only, so the tokens
+  /// are not written to storage and the next app start asks for credentials again.
+  Future<bool> login(
+    String email,
+    String password, {
+    bool keepSignedIn = true,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       final result = await _authService.login(email: email, password: password);
-      await _apiClient.saveTokens(result.accessToken, result.refreshToken);
+      await _apiClient.saveTokens(
+        result.accessToken,
+        result.refreshToken,
+        persist: keepSignedIn,
+      );
       _user = result.user;
       _status = AuthStatus.authenticated;
       _isLoading = false;

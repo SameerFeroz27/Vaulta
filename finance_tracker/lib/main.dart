@@ -20,6 +20,9 @@ import 'screens/loans/loan_list_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/transactions/transaction_list_screen.dart';
 import 'services/api_client.dart';
+import 'widgets/motion/stagger.dart';
+import 'widgets/motion/tab_slide.dart';
+import 'widgets/navigation/app_bottom_nav.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -126,6 +129,9 @@ class FinanceTrackerApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeProvider.themeMode,
+      // Flutter only draws scrollbars by default on desktop, so the themed scrollbar in
+      // AppTheme would never appear on a phone. Enabling them here makes the theme real.
+      scrollBehavior: const MaterialScrollBehavior().copyWith(scrollbars: true),
       debugShowCheckedModeBanner: false,
       routerConfig: router,
     );
@@ -147,10 +153,16 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   int _currentIndex = 0;
 
+  /// Per-tab entry counters. The tab bodies sit in an [IndexedStack], so returning to a tab
+  /// does not rebuild its list — bumping the counter here is what makes the list stagger
+  /// replay on each entry.
+  final List<int> _entryTicks = [0, 0, 0, 0];
+
   /// Refresh the dashboard on arrival. It aggregates everything, so its figures would
   /// otherwise stay at whatever was loaded at app start and go stale the moment
   /// transactions or loans change on another tab.
   void _onTabSelected(int index) {
+    if (index != _currentIndex) _entryTicks[index]++;
     setState(() => _currentIndex = index);
 
     if (index == _dashboardTabIndex) {
@@ -167,42 +179,62 @@ class _MainScaffoldState extends State<MainScaffold> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final screens = [
+    // Badges keep the two queues that silently accumulate discoverable: transactions held
+    // back for a direction decision, and loans past their due date.
+    //
+    // `select` scopes the rebuild to the two counts. Watching the providers outright would
+    // rebuild this whole shell — and therefore the dashboard and its charts — on every list
+    // page, loading toggle and count refresh.
+    final pendingReview = context.select<TransactionProvider, int>(
+      (provider) => provider.pendingReviewCount,
+    );
+    final overdue = context.select<LoanProvider, int>(
+      (provider) => provider.overdueCount,
+    );
+
+    final screens = <Widget>[
       // The dashboard's loans card jumps to the Loans tab.
-      DashboardScreen(
-        onOpenLoans: () => setState(() => _currentIndex = _loansTabIndex),
-      ),
+      DashboardScreen(onOpenLoans: () => _onTabSelected(_loansTabIndex)),
       const TransactionListScreen(),
       const LoanListScreen(),
       const SettingsScreen(),
     ];
 
     return Scaffold(
-      body: IndexedStack(
+      body: TabSlide(
         index: _currentIndex,
-        sizing: StackFit.expand,
-        children: screens,
+        child: IndexedStack(
+          index: _currentIndex,
+          sizing: StackFit.expand,
+          children: [
+            for (var i = 0; i < screens.length; i++)
+              StaggerReplay(tick: _entryTicks[i], child: screens[i]),
+          ],
+        ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        // Defaults to shifting (labels hidden) at 4+ items; all four should stay labelled.
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabSelected,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
+        destinations: [
+          const AppNavDestination(
+            icon: Icons.dashboard_outlined,
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined),
-            label: 'Transactions',
+          AppNavDestination(
+            icon: Icons.receipt_long_outlined,
+            // "Activity" rather than "Transactions": the shorter word fits its slot at any
+            // width, where the longer one was clipped on narrow screens. The screen itself
+            // keeps its own Transactions title.
+            label: 'Activity',
+            badgeCount: pendingReview,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.handshake_outlined),
+          AppNavDestination(
+            icon: Icons.handshake_outlined,
             label: 'Loans',
+            badgeCount: overdue,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
+          const AppNavDestination(
+            icon: Icons.settings_outlined,
             label: 'Settings',
           ),
         ],

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/constants.dart';
+import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/budget_provider.dart';
+import '../../providers/dashboard_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/api_client.dart';
 import '../budgets/budget_list_screen.dart';
 import '../categories/category_management_screen.dart';
 import '../receipts/receipt_list_screen.dart';
+import '../../widgets/motion/full_motion_route.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -114,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: 'Manage',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
+                    FullMotionPageRoute(
                       builder: (_) => const CategoryManagementScreen(),
                     ),
                   ),
@@ -126,7 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: 'Manage',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const BudgetListScreen()),
+                    FullMotionPageRoute(builder: (_) => const BudgetListScreen()),
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
@@ -136,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: 'View',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
+                    FullMotionPageRoute(
                       builder: (_) => const ReceiptListScreen(),
                     ),
                   ),
@@ -204,18 +208,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Logout
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ElevatedButton(
-              onPressed: () => _confirmLogout(context, auth),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade700,
+          // Log out sits behind its own divider, in the danger colour, with room beneath it
+          // so the row scrolls fully clear of the nav bar instead of ending flush against it.
+          const Divider(height: 1),
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.logout, color: AppTheme.expenseFor(context)),
+              title: Text(
+                'Log out',
+                style: TextStyle(
+                  color: AppTheme.expenseFor(context),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              child: const Text('Logout'),
+              onTap: () => _confirmLogout(context, auth),
             ),
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 24 + MediaQuery.viewPaddingOf(context).bottom),
         ],
       ),
     );
@@ -312,11 +321,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(c.name),
             onTap: () {
               Navigator.pop(ctx);
-              if (c.code != current) {
-                // Change currency, clear old rates, then auto-fetch new ones
-                auth.updateProfile(currency: c.code, clearExchangeRates: true)
-                    .then((_) => auth.refreshExchangeRates());
-              }
+              if (c.code == current) return;
+              // Change currency, clear the old rates, then auto-fetch new ones.
+              auth
+                  .updateProfile(currency: c.code, clearExchangeRates: true)
+                  .then((_) => auth.refreshExchangeRates())
+                  .then((_) {
+                if (!context.mounted) return;
+                // Dashboard totals and budget spend are both expressed in the base
+                // currency, so re-fetch them here rather than leaving the old figures
+                // sitting under the new symbol until the next tab visit.
+                context.read<DashboardProvider>().loadDashboard();
+                context.read<BudgetProvider>().loadBudgets(force: true);
+              });
             },
           );
         }).toList(),
@@ -348,9 +365,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               auth.logout();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: AppTheme.expenseFor(context),
             ),
-            child: const Text('Logout'),
+            child: const Text('Log out'),
           ),
         ],
       ),

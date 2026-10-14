@@ -36,6 +36,10 @@ class ApiClient {
   String? _accessToken;
   String? _refreshToken;
 
+  /// Whether the current session is written to secure storage. Held so a token refresh
+  /// during a non-persistent session does not quietly persist it behind the user's back.
+  bool _persistSession = true;
+
   /// Called when token refresh fails so the app can redirect to login.
   void Function()? onAuthFailed;
 
@@ -47,10 +51,19 @@ class ApiClient {
         await _storage.read(key: Constants.apiBaseUrlKey);
   }
 
-  /// Persist both tokens to memory and secure storage.
-  Future<void> saveTokens(String accessToken, String refreshToken) async {
+  /// Persist both tokens to memory, and to secure storage unless [persist] is false.
+  ///
+  /// A session with [persist] false lives in memory only, so leaving "Keep me signed in"
+  /// unticked means the next app start asks for credentials again.
+  Future<void> saveTokens(
+    String accessToken,
+    String refreshToken, {
+    bool persist = true,
+  }) async {
+    _persistSession = persist;
     _accessToken = accessToken;
     _refreshToken = refreshToken;
+    if (!persist) return;
     await _storage.write(key: Constants.accessTokenKey, value: accessToken);
     await _storage.write(key: Constants.refreshTokenKey, value: refreshToken);
   }
@@ -155,6 +168,9 @@ class ApiClient {
       await saveTokens(
         tokens['accessToken'] as String,
         tokens['refreshToken'] as String,
+        // Keep the session's own choice: a refresh must not start persisting a session the
+        // user chose to keep only for this run.
+        persist: _persistSession,
       );
       return true;
     }

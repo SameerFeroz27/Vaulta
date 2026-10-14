@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../models/loan.dart';
 import '../../providers/loan_provider.dart';
 import '../../utils/formatters.dart';
+import '../common/app_sheet.dart';
 
 /// What happened when the sheet closed, so the caller can report it accurately.
 class RecordPaymentOutcome {
@@ -30,9 +31,8 @@ class RecordPaymentSheet extends StatefulWidget {
   const RecordPaymentSheet({required this.loan, super.key});
 
   static Future<RecordPaymentOutcome?> show(BuildContext context, Loan loan) {
-    return showModalBottomSheet<RecordPaymentOutcome>(
+    return showAppSheet<RecordPaymentOutcome>(
       context: context,
-      isScrollControlled: true,
       builder: (_) => RecordPaymentSheet(loan: loan),
     );
   }

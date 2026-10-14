@@ -37,6 +37,13 @@
       "note": "'transferred to' is direction-specific; a bare 'transferred' would be ambiguous."
     },
     {
+      "name": "Transfer to a person, sending bank named in the message",
+      "bank": "Alfalah",
+      "message": "Alfalah Bank: Rs.1,200.00 transferred to HASSAN from your account on 14-10-2026. Available balance: PKR 8,400.00",
+      "expectedType": "expense",
+      "note": "The reported failure: the sending bank is the loudest name in the message, but the counterparty is HASSAN. 'Alfalah Bank' must never become the transaction's merchant."
+    },
+    {
       "name": "Salary credited",
       "bank": "Meezan",
       "message": "PKR 25,000.00 credited to your account 01234567890 on 15-Jan-2024. Salary for Jan 2024.",

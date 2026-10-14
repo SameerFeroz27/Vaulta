@@ -15,6 +15,7 @@ class LoanFilterSheet extends StatefulWidget {
 
 class _LoanFilterSheetState extends State<LoanFilterSheet> {
   late TextEditingController _searchController;
+  late String? _direction;
   late String? _state;
   late String _sort;
   late String _order;
@@ -24,6 +25,7 @@ class _LoanFilterSheetState extends State<LoanFilterSheet> {
     super.initState();
     final f = widget.currentFilters;
     _searchController = TextEditingController(text: f.search ?? '');
+    _direction = f.direction;
     _state = f.state;
     _sort = f.sort;
     _order = f.order;
@@ -61,6 +63,23 @@ class _LoanFilterSheetState extends State<LoanFilterSheet> {
                 isDense: true,
               ),
               textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+
+            // Direction now lives here rather than on a separate segmented control above
+            // the list, so one Filters control narrows the list every way it can.
+            const Text('Direction', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'all', label: Text('All')),
+                ButtonSegment(value: LoanDirection.lent, label: Text('Owed to me')),
+                ButtonSegment(value: LoanDirection.borrowed, label: Text('I owe')),
+              ],
+              selected: {_direction ?? 'all'},
+              onSelectionChanged: (set) => setState(
+                () => _direction = set.first == 'all' ? null : set.first,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -102,9 +121,7 @@ class _LoanFilterSheetState extends State<LoanFilterSheet> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      LoanFilters(direction: widget.currentFilters.direction),
-                    ),
+                    onPressed: () => Navigator.of(context).pop(LoanFilters()),
                     child: const Text('Reset'),
                   ),
                 ),
@@ -113,8 +130,7 @@ class _LoanFilterSheetState extends State<LoanFilterSheet> {
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(
                       LoanFilters(
-                        // The direction filter lives on the list screen, so keep it.
-                        direction: widget.currentFilters.direction,
+                        direction: _direction,
                         state: _state,
                         search: _searchController.text.trim().isEmpty
                             ? null
